@@ -1,0 +1,12 @@
+node_modules
+.expo
+dist
+android
+ios
+*.lock
+package-lock.json
+
+# Docs and project guidance are owned outside the formatter
+CLAUDE.md
+docs/
+README.md
