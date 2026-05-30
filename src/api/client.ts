@@ -1,3 +1,4 @@
+import { getSupabase } from '@/auth/supabase';
 import { API_URL } from '@/config';
 
 export class ApiError extends Error {
@@ -31,4 +32,24 @@ export async function request<T>(path: string, init?: RequestInit): Promise<T> {
   }
 
   return (await res.json()) as T;
+}
+
+/**
+ * Same as `request`, but attaches `Authorization: Bearer <jwt>` from the current
+ * Supabase session. Throws ApiError(401, ...) if no session is available — caller
+ * should let it propagate so React Query surfaces it like any other auth failure.
+ */
+export async function authedRequest<T>(path: string, init?: RequestInit): Promise<T> {
+  const { data } = await getSupabase().auth.getSession();
+  const token = data.session?.access_token;
+  if (!token) {
+    throw new ApiError(401, 'Unauthorized', 'No active session');
+  }
+  return request<T>(path, {
+    ...init,
+    headers: {
+      ...init?.headers,
+      Authorization: `Bearer ${token}`,
+    },
+  });
 }

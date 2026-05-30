@@ -4,9 +4,7 @@
     "strict": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": [
-        "src/*"
-      ]
+      "@/*": ["src/*"]
     },
     "resolveJsonModule": true
   },
@@ -19,9 +17,5 @@
     "expo-env.d.ts",
     ".expo/types/**/*.ts"
   ],
-  "exclude": [
-    "node_modules",
-    ".expo",
-    "dist"
-  ]
+  "exclude": ["node_modules", ".expo", "dist"]
 }

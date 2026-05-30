@@ -1,14 +1,13 @@
-import { Redirect } from 'expo-router';
+import { Redirect, Stack } from 'expo-router';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
 import { useSession } from '@/auth/SessionProvider';
 
 /**
- * Root route — sends the user to the right entry point based on their session.
- * The (auth) and (app) group layouts also enforce gates, so direct navigation
- * to either group while in the wrong auth state bounces correctly.
+ * Auth route group. If the user is already authenticated, bounce them out so
+ * they can't see the sign-in screen.
  */
-export default function Index() {
+export default function AuthLayout() {
   const { status } = useSession();
 
   if (status === 'loading') {
@@ -19,7 +18,11 @@ export default function Index() {
     );
   }
 
-  return <Redirect href={status === 'authenticated' ? '/(app)' : '/(auth)/sign-in'} />;
+  if (status === 'authenticated') {
+    return <Redirect href="/(app)" />;
+  }
+
+  return <Stack screenOptions={{ headerShown: false }} />;
 }
 
 const styles = StyleSheet.create({
