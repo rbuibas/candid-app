@@ -1,5 +1,5 @@
 import * as Linking from 'expo-linking';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -16,13 +16,6 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 export default function SignIn() {
   const [email, setEmail] = useState('');
   const [state, setState] = useState<SignInState>({ kind: 'idle' });
-
-  // Log the redirect URL once on mount so the operator can copy it into the
-  // Supabase Redirect URLs allowlist. See SUPABASE-SETUP.md section C.
-  useEffect(() => {
-    // eslint-disable-next-line no-console
-    console.log('[auth] Linking.createURL("/") =', Linking.createURL('/'));
-  }, []);
 
   const onSend = async () => {
     const trimmed = email.trim();

@@ -35,19 +35,16 @@ export function useTimezoneSync(): void {
     lastSyncedUserId.current = session.user.id;
 
     const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    // TEMP DIAGNOSTIC: log what Intl resolved to. Remove once Phase 1 ships.
-    // eslint-disable-next-line no-console
-    console.log('[timezone-sync] sending timezone:', timezone || '(empty)');
-
     if (!timezone) return;
 
     patchProfileMe({ timezone })
       .then(() => {
-        // eslint-disable-next-line no-console
-        console.log('[timezone-sync] PATCH ok; invalidating profile query');
+        // Refresh any landing-screen profile query that resolved before the
+        // PATCH landed; otherwise the user sees the stale post-signup default.
         queryClient.invalidateQueries({ queryKey: ['profile', 'me'] });
       })
       .catch((err: unknown) => {
+        // Don't surface to the user — next launch retries.
         // eslint-disable-next-line no-console
         console.warn('[timezone-sync] PATCH /profile/me failed:', err);
       });

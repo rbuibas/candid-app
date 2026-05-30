@@ -5,20 +5,22 @@ captures candid group moments during an event. This repo is the mobile half of t
 the API lives in the sibling `candid-api` repo. The full product brief and architecture
 docs are in `/docs/`.
 
-## Phase 0 scaffold
+## Current state — Phase 1 complete
 
-This is the **Phase 0** scaffold per `/docs/04-build-phases.md`. It includes:
+Per `/docs/04-build-phases.md`:
 
-- Expo (dev client) + TypeScript strict, managed with npm
-- Expo Router shell with a single **health-check screen**
-- React Query provider wired
-- Supabase client created (with `expo-secure-store` session adapter) but **unused** — no auth flow this phase
-- Typed API client (`src/api/`) with one call: `GET ${EXPO_PUBLIC_API_URL}/health`
-- EAS `development` profile: Android APK + iOS Simulator (no Apple Developer account needed)
+- **Phase 0** ✅ — Expo dev client + typed API client + health screen reaching the deployed `/health`.
+- **Phase 1** ✅ — Magic-link sign-in via Supabase, session persisted in `expo-secure-store`, auth-gated route groups, device timezone PATCHed to `/profile/me` on every sign-in + cold start.
+- **Phase 2** ⏭ — Groups & membership (create, invite, join, member list). Schema already in place backend-side.
+- Phases 3–6: capture, prompts/push, feed, hardening.
 
-**Not included** (see later phases in `/docs/04-build-phases.md`):
-auth, magic-link onboarding, photo-booth, vision-camera capture, location, FCM push,
-Zustand stores, feed, prompt UI, offline queue.
+### What ships today
+
+- Sign-in screen at `/(auth)/sign-in` → `signInWithOtp({email, emailRedirectTo: Linking.createURL('/')})` → user taps email link → app handles the deep link, extracts tokens from the URL hash, calls `setSession`.
+- Authed landing at `/(app)` shows the user's profile via `GET /profile/me`. Sign-out button calls `supabase.auth.signOut()`.
+- Custom `useSession()` hook (`src/auth/SessionProvider.tsx`) subscribes to `supabase.auth.onAuthStateChange`. Exposes `{ status: 'loading' | 'authenticated' | 'unauthenticated', session, signOut }`.
+- `authedRequest()` in `src/api/client.ts` automatically attaches `Authorization: Bearer …` from the current session.
+- `/health` remains a public route at `app/health.tsx` for API reachability checks.
 
 ## Prerequisites
 
@@ -32,12 +34,17 @@ Zustand stores, feed, prompt UI, offline queue.
 ```bash
 npm install
 cp .env.example .env
-# Fill in EXPO_PUBLIC_API_URL with the deployed candid-api /health origin.
-# For an Android emulator hitting a host-machine localhost API, use http://10.0.2.2:8000.
 ```
 
-`EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY` can be left as placeholders
-in Phase 0 — the Supabase client isn't constructed until Phase 1 wires up auth.
+Fill `.env` with:
+
+```
+EXPO_PUBLIC_API_URL=https://candid-api-7o72.onrender.com
+EXPO_PUBLIC_SUPABASE_URL=https://<your-project>.supabase.co
+EXPO_PUBLIC_SUPABASE_ANON_KEY=eyJ...
+```
+
+The anon key is fine in the bundle. **Never** put the service-role key or any backend secret in `.env`.
 
 ## Run locally
 
@@ -45,7 +52,9 @@ in Phase 0 — the Supabase client isn't constructed until Phase 1 wires up auth
 npx expo start --dev-client
 ```
 
-Requires a dev-client build installed on the device/emulator first (see next sections).
+Requires a dev-client APK installed on the device first (see next sections).
+
+Dev-client URL prefix is `candid://`. The Supabase **Authentication → URL Configuration → Redirect URLs** allowlist must include whatever `Linking.createURL('/')` resolves to in your build (typically `candid:///`). Without that the magic-link redirect won't make it back into the app.
 
 ## Build the Android dev client (free, no Apple account needed)
 
@@ -59,6 +68,8 @@ When the build finishes, EAS will give you a URL to download the APK. Install it
 device/emulator (drag-and-drop onto an emulator window, or `adb install ./dev-client.apk`).
 Then run `npx expo start --dev-client` and open the URL the bundler prints inside the dev
 client app.
+
+> No rebuild is needed when changing JS-only — Metro hot-reloads. Rebuild only when adding a new native module (e.g. `expo-image-picker`, `react-native-vision-camera`).
 
 ## Build the iOS Simulator dev client (free, no Apple account needed)
 
@@ -76,33 +87,43 @@ screen, then run `npx expo start --dev-client` from your machine.
 
 ## Scripts
 
-| Script               | What it does                                  |
-| -------------------- | --------------------------------------------- |
-| `npm start`          | `expo start --dev-client`                     |
-| `npm run android`    | `expo run:android` (after dev client is installed) |
-| `npm run ios`        | `expo run:ios`                                |
-| `npm run lint`       | ESLint, `--max-warnings 0`                    |
-| `npm run format`     | Prettier `--write`                            |
-| `npm run format:check` | Prettier `--check`                          |
-| `npm run typecheck`  | `tsc --noEmit`                                |
+| Script                 | What it does                                       |
+| ---------------------- | -------------------------------------------------- |
+| `npm start`            | `expo start --dev-client`                          |
+| `npm run android`      | `expo run:android` (after dev client is installed) |
+| `npm run ios`          | `expo run:ios`                                     |
+| `npm run lint`         | ESLint, `--max-warnings 0`                         |
+| `npm run format`       | Prettier `--write`                                 |
+| `npm run format:check` | Prettier `--check`                                 |
+| `npm run typecheck`    | `tsc --noEmit`                                     |
 
 ## Project layout
 
 Mirrors `/docs/03-technical-architecture.md` §7:
 
 ```
-app/                 Expo Router routes (Phase 0: just the health screen)
+app/
+  _layout.tsx          root: SafeAreaProvider + SessionProvider + QueryProvider
+  index.tsx            session-aware redirector
+  health.tsx           public health screen
+  (auth)/
+    _layout.tsx        bounces to (app) if authed
+    sign-in.tsx        email entry → signInWithOtp
+  (app)/
+    _layout.tsx        bounces to (auth)/sign-in if not authed; mounts useTimezoneSync
+    index.tsx          landing — GET /profile/me + sign-out
+
 src/
-  api/               typed client + endpoints
-  auth/              Supabase client + SecureStore adapter (unused in Phase 0)
+  api/                 typed client (request, authedRequest), profile, health
+  auth/                Supabase client, SessionProvider, useDeepLinkAuth, useTimezoneSync
   features/
-    onboarding/      stub (Phase 1/3)
-    prompt/          stub (Phase 4)
-    capture/         stub (Phase 3/6)
-    feed/            stub (Phase 5)
-  notifications/     stub (Phase 4)
-  providers/         React Query provider
-  stores/            stub — Zustand lands Phase 3+
+    onboarding/        stub (Phase 3)
+    prompt/            stub (Phase 4)
+    capture/           stub (Phase 3/6)
+    feed/              stub (Phase 5)
+  notifications/       stub (Phase 4)
+  providers/           React Query provider
+  stores/              stub — Zustand lands Phase 3+
   theme/  utils/  types/   stubs
 ```
 
@@ -122,9 +143,3 @@ src/
 These are placeholders pending the final product name. Renaming them later creates a
 new app identity on the stores — settle the name **before** the first TestFlight or Play
 Console submission.
-
-## Phase 0 acceptance
-
-With `EXPO_PUBLIC_API_URL` pointed at a reachable `/health` endpoint returning
-`{"status":"ok"}`, the health screen should display **`status: ok`** in green on a
-real Android device (and on the iOS Simulator when built on a Mac).
