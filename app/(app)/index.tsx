@@ -28,7 +28,7 @@ export default function Landing() {
           <View style={styles.block}>
             <Text style={styles.error}>
               {error instanceof ApiError
-                ? `${error.status} ${error.message}`
+                ? `${error.status}: ${error.body || error.message}`
                 : 'Network error loading profile'}
             </Text>
             <Pressable
