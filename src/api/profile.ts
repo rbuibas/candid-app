@@ -28,3 +28,23 @@ export const patchProfileMe = (patch: ProfileUpdate): Promise<Profile> =>
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(patch),
   });
+
+export type AvatarUploadUrlResponse = {
+  upload_url: string;
+  storage_path: string;
+  expires_at: string;
+};
+
+export const createAvatarUploadUrl = (extension: string): Promise<AvatarUploadUrlResponse> =>
+  authedRequest<AvatarUploadUrlResponse>('/profile/avatar/upload-url', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ extension }),
+  });
+
+export const patchAvatar = (storage_path: string): Promise<Profile> =>
+  authedRequest<Profile>('/profile/avatar', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ storage_path }),
+  });

@@ -5,14 +5,17 @@ captures candid group moments during an event. This repo is the mobile half of t
 the API lives in the sibling `candid-api` repo. The full product brief and architecture
 docs are in `/docs/`.
 
-## Current state — Phase 1 complete
+## Current state — Phase 3 complete
 
 Per `/docs/04-build-phases.md`:
 
 - **Phase 0** ✅ — Expo dev client + typed API client + health screen reaching the deployed `/health`.
 - **Phase 1** ✅ — Magic-link sign-in via Supabase, session persisted in `expo-secure-store`, auth-gated route groups, device timezone PATCHed to `/profile/me` on every sign-in + cold start.
-- **Phase 2** ⏭ — Groups & membership (create, invite, join, member list). Schema already in place backend-side.
-- Phases 3–6: capture, prompts/push, feed, hardening.
+- **Phase 2** ✅ — Groups & membership (create, invite, join, member list, creator delete).
+- **Phase 3** ✅ — In-app camera (vision-camera), photo-booth strip flow, optional geocode at capture, presigned-URL upload to R2, idempotent confirm, signed-URL post preview.
+- Phases 4–6: prompts/push, feed, hardening.
+
+> **Phase 3 added native modules** (`react-native-vision-camera`, `expo-location`, `react-native-view-shot`, `expo-video`, `expo-file-system`). A **fresh EAS dev-client build is required** before this code can run on a device — `eas build --profile development --platform <ios|android>`.
 
 ### What ships today
 
@@ -111,19 +114,35 @@ app/
     sign-in.tsx        email entry → signInWithOtp
   (app)/
     _layout.tsx        bounces to (auth)/sign-in if not authed; mounts useTimezoneSync
-    index.tsx          landing — GET /profile/me + sign-out
+    index.tsx          → /(app)/groups
+    groups/
+      _layout.tsx          stack with headers shown
+      index.tsx            groups list + create/join CTAs
+      create.tsx           create-group + advanced settings
+      join.tsx             paste-code join
+      [id]/
+        index.tsx          group detail — invite, members, test-capture buttons
+        capture.tsx        test photo / test video (vision-camera, geocode, upload)
+        photobooth.tsx     3-frame strip flow + avatar
+        posts/[postId]/
+          index.tsx        post-preview verification screen
 
 src/
-  api/                 typed client (request, authedRequest), profile, health
+  api/                 typed client (request, authedRequest), profile, groups,
+                       members, posts, health
   auth/                Supabase client, SessionProvider, useDeepLinkAuth, useTimezoneSync
   features/
-    onboarding/        stub (Phase 3)
+    onboarding/        stub (photo-booth-on-join lands in Phase 4)
     prompt/            stub (Phase 4)
-    capture/           stub (Phase 3/6)
+    capture/           hooks + helpers shared by capture & photobooth screens:
+                       useCameraPermissions, useGeocode (geocodeOnce),
+                       uploadBytes, StripComposer, Countdown
     feed/              stub (Phase 5)
+    groups/            list item, lifecycle badge, member avatar (Phase 2)
+    invites/           pendingInvite store + useDeepLinkJoin (Phase 2)
   notifications/       stub (Phase 4)
   providers/           React Query provider
-  stores/              stub — Zustand lands Phase 3+
+  stores/              stub — Zustand lands Phase 6 (offline queue)
   theme/  utils/  types/   stubs
 ```
 
