@@ -148,6 +148,56 @@ export default function GroupDetail() {
               )}
             </View>
 
+            <View style={styles.captureBlock}>
+              <Text style={styles.sectionLabel}>Test capture</Text>
+              <Text style={styles.captureHint}>
+                Stand-in for the prompt-driven entry that arrives in Phase 4.
+              </Text>
+              <View style={styles.captureRow}>
+                <Pressable
+                  onPress={() =>
+                    router.push({
+                      pathname: '/(app)/groups/[id]/capture',
+                      params: { id, mode: 'photo' },
+                    })
+                  }
+                  style={({ pressed }) => [
+                    styles.secondaryBtn,
+                    styles.captureBtnFlex,
+                    pressed && styles.pressed,
+                  ]}
+                >
+                  <Text style={styles.secondaryBtnText}>Test photo</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() =>
+                    router.push({
+                      pathname: '/(app)/groups/[id]/capture',
+                      params: { id, mode: 'video' },
+                    })
+                  }
+                  style={({ pressed }) => [
+                    styles.secondaryBtn,
+                    styles.captureBtnFlex,
+                    pressed && styles.pressed,
+                  ]}
+                >
+                  <Text style={styles.secondaryBtnText}>Test video</Text>
+                </Pressable>
+              </View>
+              <Pressable
+                onPress={() =>
+                  router.push({
+                    pathname: '/(app)/groups/[id]/photobooth',
+                    params: { id },
+                  })
+                }
+                style={({ pressed }) => [styles.primaryBtn, pressed && styles.pressed]}
+              >
+                <Text style={styles.primaryBtnText}>Open photo booth</Text>
+              </Pressable>
+            </View>
+
             <Text style={styles.sectionLabel}>Members</Text>
             {membersQ.isLoading ? <ActivityIndicator style={styles.membersLoading} /> : null}
             {membersQ.isError ? (
@@ -241,6 +291,15 @@ const styles = StyleSheet.create({
   },
   inviteHint: { fontSize: 12, color: '#656d76', textAlign: 'center' },
   inviteMissing: { fontSize: 14, color: '#656d76' },
+  captureBlock: {
+    gap: 8,
+    padding: 16,
+    borderRadius: 12,
+    backgroundColor: '#f6f8fa',
+  },
+  captureHint: { fontSize: 12, color: '#656d76' },
+  captureRow: { flexDirection: 'row', gap: 12, marginTop: 4 },
+  captureBtnFlex: { flex: 1, alignSelf: 'auto', alignItems: 'center' },
   primaryBtn: {
     backgroundColor: '#1f2328',
     paddingVertical: 12,
