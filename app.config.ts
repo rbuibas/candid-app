@@ -20,7 +20,29 @@ const config: ExpoConfig = {
   android: {
     package: 'app.candid',
   },
-  plugins: ['expo-router', 'expo-secure-store', 'expo-asset'],
+  plugins: [
+    'expo-router',
+    'expo-secure-store',
+    'expo-asset',
+    'expo-video',
+    [
+      'react-native-vision-camera',
+      {
+        cameraPermissionText:
+          'Candid uses the camera to capture the group moments you and your friends are prompted for.',
+        enableMicrophonePermission: true,
+        microphonePermissionText:
+          'Candid records short videos with sound when a video prompt fires.',
+      },
+    ],
+    [
+      'expo-location',
+      {
+        locationWhenInUsePermission:
+          'Candid can optionally attach where a moment was captured so you can revisit it later.',
+      },
+    ],
+  ],
   experiments: {
     typedRoutes: true,
   },

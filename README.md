@@ -5,14 +5,17 @@ captures candid group moments during an event. This repo is the mobile half of t
 the API lives in the sibling `candid-api` repo. The full product brief and architecture
 docs are in `/docs/`.
 
-## Current state — Phase 1 complete
+## Current state — Phase 3 complete
 
 Per `/docs/04-build-phases.md`:
 
 - **Phase 0** ✅ — Expo dev client + typed API client + health screen reaching the deployed `/health`.
 - **Phase 1** ✅ — Magic-link sign-in via Supabase, session persisted in `expo-secure-store`, auth-gated route groups, device timezone PATCHed to `/profile/me` on every sign-in + cold start.
-- **Phase 2** ⏭ — Groups & membership (create, invite, join, member list). Schema already in place backend-side.
-- Phases 3–6: capture, prompts/push, feed, hardening.
+- **Phase 2** ✅ — Groups & membership (create, invite, join, member list, creator delete).
+- **Phase 3** ✅ — In-app camera (vision-camera), photo-booth strip flow, optional geocode at capture, presigned-URL upload to R2, idempotent confirm, signed-URL post preview.
+- Phases 4–6: prompts/push, feed, hardening.
+
+> **Phase 3 added native modules** (`react-native-vision-camera`, `expo-location`, `react-native-view-shot`, `expo-video`, `expo-file-system`). A **fresh EAS dev-client build is required** before this code can run on a device — `eas build --profile development --platform <ios|android>`.
 
 ### What ships today
 
