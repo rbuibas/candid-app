@@ -53,3 +53,30 @@ export async function authedRequest<T>(path: string, init?: RequestInit): Promis
     },
   });
 }
+
+/**
+ * Authed request for endpoints that return 204 No Content (or otherwise have no
+ * JSON body). Skips the `res.json()` parse that `request` performs unconditionally.
+ */
+export async function authedRequestNoContent(path: string, init?: RequestInit): Promise<void> {
+  if (!path.startsWith('/')) {
+    throw new Error(`API path must start with "/": got "${path}"`);
+  }
+  const { data } = await getSupabase().auth.getSession();
+  const token = data.session?.access_token;
+  if (!token) {
+    throw new ApiError(401, 'Unauthorized', 'No active session');
+  }
+  const res = await fetch(`${API_URL}${path}`, {
+    ...init,
+    headers: {
+      Accept: 'application/json',
+      ...init?.headers,
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new ApiError(res.status, res.statusText, body);
+  }
+}
