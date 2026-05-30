@@ -114,19 +114,35 @@ app/
     sign-in.tsx        email entry → signInWithOtp
   (app)/
     _layout.tsx        bounces to (auth)/sign-in if not authed; mounts useTimezoneSync
-    index.tsx          landing — GET /profile/me + sign-out
+    index.tsx          → /(app)/groups
+    groups/
+      _layout.tsx          stack with headers shown
+      index.tsx            groups list + create/join CTAs
+      create.tsx           create-group + advanced settings
+      join.tsx             paste-code join
+      [id]/
+        index.tsx          group detail — invite, members, test-capture buttons
+        capture.tsx        test photo / test video (vision-camera, geocode, upload)
+        photobooth.tsx     3-frame strip flow + avatar
+        posts/[postId]/
+          index.tsx        post-preview verification screen
 
 src/
-  api/                 typed client (request, authedRequest), profile, health
+  api/                 typed client (request, authedRequest), profile, groups,
+                       members, posts, health
   auth/                Supabase client, SessionProvider, useDeepLinkAuth, useTimezoneSync
   features/
-    onboarding/        stub (Phase 3)
+    onboarding/        stub (photo-booth-on-join lands in Phase 4)
     prompt/            stub (Phase 4)
-    capture/           stub (Phase 3/6)
+    capture/           hooks + helpers shared by capture & photobooth screens:
+                       useCameraPermissions, useGeocode (geocodeOnce),
+                       uploadBytes, StripComposer, Countdown
     feed/              stub (Phase 5)
+    groups/            list item, lifecycle badge, member avatar (Phase 2)
+    invites/           pendingInvite store + useDeepLinkJoin (Phase 2)
   notifications/       stub (Phase 4)
   providers/           React Query provider
-  stores/              stub — Zustand lands Phase 3+
+  stores/              stub — Zustand lands Phase 6 (offline queue)
   theme/  utils/  types/   stubs
 ```
 
