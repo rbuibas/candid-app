@@ -45,6 +45,20 @@ export async function authedRequest<T>(path: string, init?: RequestInit): Promis
   if (!token) {
     throw new ApiError(401, 'Unauthorized', 'No active session');
   }
+  // TEMP DIAGNOSTIC: log the JWT header so we can see the `alg` (HS256 vs RS256).
+  // Remove after Phase 1 debug.
+  try {
+    const headerB64 = token.split('.')[0];
+    const padded = headerB64.replace(/-/g, '+').replace(/_/g, '/');
+    const json =
+      typeof atob === 'function'
+        ? atob(padded + '='.repeat((4 - (padded.length % 4)) % 4))
+        : Buffer.from(padded, 'base64').toString('utf8');
+    // eslint-disable-next-line no-console
+    console.log('[authedRequest] JWT header:', json, '| path:', path);
+  } catch {
+    // ignore
+  }
   return request<T>(path, {
     ...init,
     headers: {
