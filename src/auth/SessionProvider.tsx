@@ -49,14 +49,25 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signOut = useCallback(async () => {
+    console.log('[auth] signOut tapped');
     // Fire-and-forget: tell the backend to forget this device's FCM token.
     // We must NOT await it — messaging().getToken() can hang on devices
     // where FCM never registered successfully (e.g. push denied), and the
     // sign-out button would silently do nothing. Best-effort cleanup is
     // fine; a stale device row gets reclaimed on the next sign-in.
     void unregisterThisDevice();
-    await getSupabase().auth.signOut();
-    // Auth-state listener above will flip status to 'unauthenticated'.
+    try {
+      // scope:'local' clears the cached session WITHOUT trying to hit the
+      // server to revoke it. The server hop can hang on flaky networks or a
+      // sleeping/unreachable API, leaving the button visually inert; local
+      // clearing always succeeds and the auth-state listener flips on the
+      // next tick.
+      const { error } = await getSupabase().auth.signOut({ scope: 'local' });
+      if (error) console.warn('[auth] signOut error', error);
+      else console.log('[auth] signOut done');
+    } catch (err) {
+      console.warn('[auth] signOut threw', err);
+    }
   }, []);
 
   return (

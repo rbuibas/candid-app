@@ -13,7 +13,10 @@ function SignOutButton() {
   const { signOut } = useSession();
   return (
     <Pressable
-      onPress={signOut}
+      onPress={() => {
+        console.log('[ui] sign-out pressed');
+        void signOut();
+      }}
       style={({ pressed }) => [styles.headerBtn, pressed && styles.pressed]}
     >
       <Text style={styles.headerBtnText}>Sign out</Text>

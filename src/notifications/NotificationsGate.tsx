@@ -39,17 +39,32 @@ export function NotificationsGate({ children }: { children: ReactNode }) {
   // and foreground, check /prompts/active and route if anything actionable.
   useActivePromptHydration();
 
-  // Read the persistent "have we ever asked" flag on first mount.
+  // Resolve whether to show the rationale. Re-runs when status changes so we
+  // can short-circuit if the OS already reports granted (e.g. user enabled
+  // via system settings before we ever primed). The 'unknown' status is the
+  // initial pre-read state — wait for the real read before deciding.
   useEffect(() => {
+    if (status === 'unknown') return;
     let cancelled = false;
     void getPushPrimed().then((primed) => {
       if (cancelled) return;
-      setPrimedState(primed ? 'done' : 'show');
+      if (primed) {
+        setPrimedState('done');
+        return;
+      }
+      // No flag yet, but the OS already says granted — silently record and
+      // skip the modal so we don't ask the user to enable a thing that's on.
+      if (status === 'granted') {
+        void setPushPrimed();
+        setPrimedState('done');
+        return;
+      }
+      setPrimedState('show');
     });
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [status]);
 
   // Once granted, register exactly once per app process and wire token-refresh.
   useEffect(() => {
