@@ -49,10 +49,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signOut = useCallback(async () => {
-    // Best-effort: tell the backend to forget this device's FCM token before
-    // we lose the JWT. Swallowed inside unregisterThisDevice so a network
-    // blip can't wedge the sign-out flow.
-    await unregisterThisDevice();
+    // Fire-and-forget: tell the backend to forget this device's FCM token.
+    // We must NOT await it — messaging().getToken() can hang on devices
+    // where FCM never registered successfully (e.g. push denied), and the
+    // sign-out button would silently do nothing. Best-effort cleanup is
+    // fine; a stale device row gets reclaimed on the next sign-in.
+    void unregisterThisDevice();
     await getSupabase().auth.signOut();
     // Auth-state listener above will flip status to 'unauthenticated'.
   }, []);

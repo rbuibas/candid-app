@@ -7,6 +7,7 @@ import { useActivePromptHydration } from '@/features/prompt/useActivePromptHydra
 import { registerThisDevice, subscribeTokenRefresh } from './fcm';
 import { usePushHandlers } from './handlers';
 import { usePushPermission } from './permissions';
+import { getPushPrimed, setPushPrimed } from './primedFlag';
 
 /**
  * Sits inside (app)/_layout.tsx — only ever mounts behind the auth gate, so
@@ -14,20 +15,19 @@ import { usePushPermission } from './permissions';
  * clean, per the Phase-4 brief).
  *
  * Responsibilities:
- *   1. On first authed mount with `status === 'undetermined'`, render the
- *      locked rationale modal BEFORE the OS prompt — without it the OS ask
- *      lands without context and gets denied at much higher rates. Loop dies.
+ *   1. Show the locked rationale modal on the first authed open we've ever
+ *      had (tracked via a SecureStore flag — see primedFlag.ts for why we
+ *      can't rely on OS status alone on Android).
  *   2. On grant (now or in the past), register the device's FCM token with
  *      the backend and subscribe to onTokenRefresh.
  *   3. Denial is intentionally not surfaced here — the persistent banner
  *      (PushDeniedBanner) owns that, mounted on the groups screens.
- *
- * No persistent "already primed" flag is needed: `undetermined` is owned by
- * the OS and is the natural one-shot trigger.
  */
 export function NotificationsGate({ children }: { children: ReactNode }) {
   const { status, request } = usePushPermission();
-  const [showRationale, setShowRationale] = useState(false);
+  // 'checking' = haven't read the SecureStore flag yet; 'show' = first-ever
+  // open, render the rationale; 'done' = already primed at least once.
+  const [primedState, setPrimedState] = useState<'checking' | 'show' | 'done'>('checking');
   const registeredRef = useRef(false);
 
   // Wire FCM lifecycle handlers (foreground / background-tap / cold-start).
@@ -39,13 +39,17 @@ export function NotificationsGate({ children }: { children: ReactNode }) {
   // and foreground, check /prompts/active and route if anything actionable.
   useActivePromptHydration();
 
-  // When status first reaches 'undetermined', open the rationale modal. Wait
-  // until it transitions away from 'unknown' so we don't flash the modal
-  // before the initial read resolves.
+  // Read the persistent "have we ever asked" flag on first mount.
   useEffect(() => {
-    if (status === 'undetermined') setShowRationale(true);
-    else if (status !== 'unknown') setShowRationale(false);
-  }, [status]);
+    let cancelled = false;
+    void getPushPrimed().then((primed) => {
+      if (cancelled) return;
+      setPrimedState(primed ? 'done' : 'show');
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Once granted, register exactly once per app process and wire token-refresh.
   useEffect(() => {
@@ -63,9 +67,14 @@ export function NotificationsGate({ children }: { children: ReactNode }) {
   }, [status]);
 
   const onAllow = async () => {
+    // Persist BEFORE awaiting so a backgrounded OS prompt + re-mount doesn't
+    // re-show the rationale.
+    await setPushPrimed();
+    setPrimedState('done');
     await request();
-    setShowRationale(false);
   };
+
+  const showRationale = primedState === 'show';
 
   return (
     <>
