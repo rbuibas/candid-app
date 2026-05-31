@@ -1,6 +1,8 @@
 import type { Session } from '@supabase/supabase-js';
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
 
+import { unregisterThisDevice } from '@/notifications/fcm';
+
 import { getSupabase } from './supabase';
 
 type SessionState =
@@ -47,6 +49,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signOut = useCallback(async () => {
+    // Best-effort: tell the backend to forget this device's FCM token before
+    // we lose the JWT. Swallowed inside unregisterThisDevice so a network
+    // blip can't wedge the sign-out flow.
+    await unregisterThisDevice();
     await getSupabase().auth.signOut();
     // Auth-state listener above will flip status to 'unauthenticated'.
   }, []);
