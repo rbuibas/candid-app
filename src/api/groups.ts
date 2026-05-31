@@ -1,4 +1,5 @@
-import { authedRequest, authedRequestNoContent } from './client';
+import { ApiError, authedRequest, authedRequestNoContent } from './client';
+import type { PostWithMediaUrl } from './posts';
 
 export type Lifecycle = 'upcoming' | 'active' | 'locked';
 
@@ -73,4 +74,19 @@ export function joinGroup(code: string): Promise<GroupWithLifecycle> {
 
 export function deleteGroup(id: string): Promise<void> {
   return authedRequestNoContent(`/groups/${id}`, { method: 'DELETE' });
+}
+
+/**
+ * Returns the caller's photo-booth strip post for this group, or `null` if
+ * they don't have one yet. Backed by `GET /groups/{id}/photobooth/me`, which
+ * 404s when no strip exists — the 404 is the expected shape, not an error,
+ * so we collapse it to `null` for a clean `useQuery` site.
+ */
+export async function getMyPhotoboothPost(groupId: string): Promise<PostWithMediaUrl | null> {
+  try {
+    return await authedRequest<PostWithMediaUrl>(`/groups/${groupId}/photobooth/me`);
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 404) return null;
+    throw err;
+  }
 }
