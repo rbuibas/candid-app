@@ -19,6 +19,7 @@ import { useSession } from '@/auth/SessionProvider';
 import { LifecycleBadge } from '@/features/groups/components/LifecycleBadge';
 import { MemberAvatar } from '@/features/groups/components/MemberAvatar';
 import { formatDateRange, formatJoinedDate } from '@/features/groups/lifecycle';
+import { PushDeniedBanner } from '@/notifications/PushDeniedBanner';
 
 export default function GroupDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -117,97 +118,100 @@ export default function GroupDetail() {
         renderItem={({ item }) => <MemberRow member={item} />}
         ItemSeparatorComponent={() => <View style={styles.separator} />}
         ListHeaderComponent={
-          <View style={styles.header}>
-            <View style={styles.titleRow}>
-              <Text style={styles.title} numberOfLines={2}>
-                {group.name}
-              </Text>
-              <LifecycleBadge lifecycle={group.lifecycle} />
-            </View>
-            <Text style={styles.dates}>{formatDateRange(group.start_date, group.end_date)}</Text>
-
-            <View style={styles.inviteBlock}>
-              <Text style={styles.sectionLabel}>Invite</Text>
-              {inviteCode ? (
-                <>
-                  <Text style={styles.inviteCode} selectable>
-                    {inviteCode}
-                  </Text>
-                  <Text style={styles.inviteHint}>Long-press the code to copy.</Text>
-                  <Pressable
-                    onPress={() => onShareInvite(inviteCode, group.name)}
-                    style={({ pressed }) => [styles.primaryBtn, pressed && styles.pressed]}
-                  >
-                    <Text style={styles.primaryBtnText}>Share invite</Text>
-                  </Pressable>
-                </>
-              ) : (
-                <Text style={styles.inviteMissing}>
-                  Invite code not available in this session — ask the creator to share it.
+          <>
+            <PushDeniedBanner />
+            <View style={styles.header}>
+              <View style={styles.titleRow}>
+                <Text style={styles.title} numberOfLines={2}>
+                  {group.name}
                 </Text>
-              )}
-            </View>
+                <LifecycleBadge lifecycle={group.lifecycle} />
+              </View>
+              <Text style={styles.dates}>{formatDateRange(group.start_date, group.end_date)}</Text>
 
-            <View style={styles.captureBlock}>
-              <Text style={styles.sectionLabel}>Test capture</Text>
-              <Text style={styles.captureHint}>
-                Stand-in for the prompt-driven entry that arrives in Phase 4.
-              </Text>
-              <View style={styles.captureRow}>
+              <View style={styles.inviteBlock}>
+                <Text style={styles.sectionLabel}>Invite</Text>
+                {inviteCode ? (
+                  <>
+                    <Text style={styles.inviteCode} selectable>
+                      {inviteCode}
+                    </Text>
+                    <Text style={styles.inviteHint}>Long-press the code to copy.</Text>
+                    <Pressable
+                      onPress={() => onShareInvite(inviteCode, group.name)}
+                      style={({ pressed }) => [styles.primaryBtn, pressed && styles.pressed]}
+                    >
+                      <Text style={styles.primaryBtnText}>Share invite</Text>
+                    </Pressable>
+                  </>
+                ) : (
+                  <Text style={styles.inviteMissing}>
+                    Invite code not available in this session — ask the creator to share it.
+                  </Text>
+                )}
+              </View>
+
+              <View style={styles.captureBlock}>
+                <Text style={styles.sectionLabel}>Test capture</Text>
+                <Text style={styles.captureHint}>
+                  Stand-in for the prompt-driven entry that arrives in Phase 4.
+                </Text>
+                <View style={styles.captureRow}>
+                  <Pressable
+                    onPress={() =>
+                      router.push({
+                        pathname: '/(app)/groups/[id]/capture',
+                        params: { id, mode: 'photo' },
+                      })
+                    }
+                    style={({ pressed }) => [
+                      styles.secondaryBtn,
+                      styles.captureBtnFlex,
+                      pressed && styles.pressed,
+                    ]}
+                  >
+                    <Text style={styles.secondaryBtnText}>Test photo</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() =>
+                      router.push({
+                        pathname: '/(app)/groups/[id]/capture',
+                        params: { id, mode: 'video' },
+                      })
+                    }
+                    style={({ pressed }) => [
+                      styles.secondaryBtn,
+                      styles.captureBtnFlex,
+                      pressed && styles.pressed,
+                    ]}
+                  >
+                    <Text style={styles.secondaryBtnText}>Test video</Text>
+                  </Pressable>
+                </View>
                 <Pressable
                   onPress={() =>
                     router.push({
-                      pathname: '/(app)/groups/[id]/capture',
-                      params: { id, mode: 'photo' },
+                      pathname: '/(app)/groups/[id]/photobooth',
+                      params: { id },
                     })
                   }
-                  style={({ pressed }) => [
-                    styles.secondaryBtn,
-                    styles.captureBtnFlex,
-                    pressed && styles.pressed,
-                  ]}
+                  style={({ pressed }) => [styles.primaryBtn, pressed && styles.pressed]}
                 >
-                  <Text style={styles.secondaryBtnText}>Test photo</Text>
-                </Pressable>
-                <Pressable
-                  onPress={() =>
-                    router.push({
-                      pathname: '/(app)/groups/[id]/capture',
-                      params: { id, mode: 'video' },
-                    })
-                  }
-                  style={({ pressed }) => [
-                    styles.secondaryBtn,
-                    styles.captureBtnFlex,
-                    pressed && styles.pressed,
-                  ]}
-                >
-                  <Text style={styles.secondaryBtnText}>Test video</Text>
+                  <Text style={styles.primaryBtnText}>Open photo booth</Text>
                 </Pressable>
               </View>
-              <Pressable
-                onPress={() =>
-                  router.push({
-                    pathname: '/(app)/groups/[id]/photobooth',
-                    params: { id },
-                  })
-                }
-                style={({ pressed }) => [styles.primaryBtn, pressed && styles.pressed]}
-              >
-                <Text style={styles.primaryBtnText}>Open photo booth</Text>
-              </Pressable>
-            </View>
 
-            <Text style={styles.sectionLabel}>Members</Text>
-            {membersQ.isLoading ? <ActivityIndicator style={styles.membersLoading} /> : null}
-            {membersQ.isError ? (
-              <Text style={styles.error}>
-                {membersQ.error instanceof ApiError
-                  ? `${membersQ.error.status}: ${membersQ.error.body || membersQ.error.message}`
-                  : 'Network error loading members'}
-              </Text>
-            ) : null}
-          </View>
+              <Text style={styles.sectionLabel}>Members</Text>
+              {membersQ.isLoading ? <ActivityIndicator style={styles.membersLoading} /> : null}
+              {membersQ.isError ? (
+                <Text style={styles.error}>
+                  {membersQ.error instanceof ApiError
+                    ? `${membersQ.error.status}: ${membersQ.error.body || membersQ.error.message}`
+                    : 'Network error loading members'}
+                </Text>
+              ) : null}
+            </View>
+          </>
         }
         ListFooterComponent={
           isCreator ? (

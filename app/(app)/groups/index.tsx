@@ -7,6 +7,7 @@ import { ApiError } from '@/api/client';
 import { listGroups, type GroupWithLifecycle } from '@/api/groups';
 import { useSession } from '@/auth/SessionProvider';
 import { GroupListItem } from '@/features/groups/components/GroupListItem';
+import { PushDeniedBanner } from '@/notifications/PushDeniedBanner';
 
 function SignOutButton() {
   const { signOut } = useSession();
@@ -35,6 +36,8 @@ export default function GroupsList() {
           headerRight: () => <SignOutButton />,
         }}
       />
+
+      <PushDeniedBanner />
 
       {isLoading ? (
         <View style={styles.center}>
