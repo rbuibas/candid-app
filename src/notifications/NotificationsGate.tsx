@@ -2,6 +2,8 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { useActivePromptHydration } from '@/features/prompt/useActivePromptHydration';
+
 import { registerThisDevice, subscribeTokenRefresh } from './fcm';
 import { usePushHandlers } from './handlers';
 import { usePushPermission } from './permissions';
@@ -32,6 +34,10 @@ export function NotificationsGate({ children }: { children: ReactNode }) {
   // Safe to mount unconditionally — they're no-ops on a non-Firebase target
   // and harmless when permission is denied (no pushes will arrive).
   usePushHandlers();
+
+  // Belt-and-braces for the push-killed-the-app case: on every authed mount
+  // and foreground, check /prompts/active and route if anything actionable.
+  useActivePromptHydration();
 
   // When status first reaches 'undetermined', open the rationale modal. Wait
   // until it transitions away from 'unknown' so we don't flash the modal
