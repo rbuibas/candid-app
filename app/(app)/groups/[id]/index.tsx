@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -19,6 +20,7 @@ import { useSession } from '@/auth/SessionProvider';
 import { LifecycleBadge } from '@/features/groups/components/LifecycleBadge';
 import { MemberAvatar } from '@/features/groups/components/MemberAvatar';
 import { formatDateRange, formatJoinedDate } from '@/features/groups/lifecycle';
+import { useHasPhotobooth } from '@/features/prompt/useHasPhotobooth';
 import { PushDeniedBanner } from '@/notifications/PushDeniedBanner';
 
 export default function GroupDetail() {
@@ -39,6 +41,17 @@ export default function GroupDetail() {
     queryFn: () => listMembers(id),
     enabled: !!id,
   });
+
+  // Photo-booth-on-join: if the caller has no strip in this group yet,
+  // bounce them to the photo booth before they see the group detail proper.
+  // Replace (not push) so back-nav doesn't loop them straight back here.
+  const photoboothQ = useHasPhotobooth(id);
+  useEffect(() => {
+    if (!id) return;
+    if (photoboothQ.isLoading) return;
+    if (photoboothQ.data !== null) return;
+    router.replace({ pathname: '/(app)/groups/[id]/photobooth', params: { id } });
+  }, [id, photoboothQ.isLoading, photoboothQ.data, router]);
 
   const cachedInvite = qc.getQueryData<{ code: string }>(['groups', id, 'invite']);
   const inviteCode = cachedInvite?.code ?? null;

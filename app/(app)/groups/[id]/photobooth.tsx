@@ -136,10 +136,13 @@ function PhotoBoothLive({ groupId, onBack }: { groupId: string; onBack: () => vo
     await uploadBytes(avatarMint.upload_url, frame0, 'image/jpeg');
     await patchAvatar(avatarMint.storage_path);
 
-    // 4. Refresh profile + members so the new avatar shows up immediately.
+    // 4. Refresh profile + members so the new avatar shows up immediately;
+    //    invalidate the photobooth-mine query so the group detail screen
+    //    stops auto-routing the user back into the photo booth.
     await Promise.all([
       qc.invalidateQueries({ queryKey: ['profile', 'me'] }),
       qc.invalidateQueries({ queryKey: ['groups', groupId, 'members'] }),
+      qc.invalidateQueries({ queryKey: ['groups', groupId, 'photobooth-mine'] }),
     ]);
 
     setPhase({ kind: 'done', stripPostId: stripPostRef.current.id });
