@@ -19,12 +19,21 @@ const config: ExpoConfig = {
   },
   android: {
     package: 'app.candid',
+    // POST_NOTIFICATIONS is the Android 13+ runtime permission gating FCM
+    // foreground display. RN Firebase Messaging's requestPermission triggers
+    // the OS prompt for it on first ask.
+    permissions: ['POST_NOTIFICATIONS'],
+    googleServicesFile: './google-services.json',
   },
   plugins: [
     'expo-router',
     'expo-secure-store',
     'expo-asset',
     'expo-video',
+    // RN Firebase config plugin — wires native init for FCM. iOS push is
+    // deferred (no GoogleService-Info.plist in repo), so this currently only
+    // takes effect on Android via google-services.json above.
+    '@react-native-firebase/app',
     [
       'react-native-vision-camera',
       {
