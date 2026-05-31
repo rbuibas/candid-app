@@ -3,6 +3,7 @@ import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { registerThisDevice, subscribeTokenRefresh } from './fcm';
+import { usePushHandlers } from './handlers';
 import { usePushPermission } from './permissions';
 
 /**
@@ -26,6 +27,11 @@ export function NotificationsGate({ children }: { children: ReactNode }) {
   const { status, request } = usePushPermission();
   const [showRationale, setShowRationale] = useState(false);
   const registeredRef = useRef(false);
+
+  // Wire FCM lifecycle handlers (foreground / background-tap / cold-start).
+  // Safe to mount unconditionally — they're no-ops on a non-Firebase target
+  // and harmless when permission is denied (no pushes will arrive).
+  usePushHandlers();
 
   // When status first reaches 'undetermined', open the rationale modal. Wait
   // until it transitions away from 'unknown' so we don't flash the modal
