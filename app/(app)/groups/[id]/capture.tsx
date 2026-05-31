@@ -22,6 +22,7 @@ import {
 import { geocodeOnce } from '@/features/capture/useGeocode';
 import { contentTypeFor, uploadBytes } from '@/features/capture/uploadBytes';
 import { useCameraPermissions } from '@/features/capture/useCameraPermissions';
+import { useActivePrompt } from '@/features/prompt/useActivePrompt';
 
 type Mode = 'photo' | 'video';
 
@@ -30,10 +31,10 @@ function isMode(value: unknown): value is Mode {
 }
 
 export default function CaptureScreen() {
-  const params = useLocalSearchParams<{ id: string; mode?: string }>();
+  const params = useLocalSearchParams<{ id: string; mode?: string; promptId?: string }>();
   const router = useRouter();
   const id = params.id;
-  const mode: Mode = isMode(params.mode) ? params.mode : 'photo';
+  const promptId = params.promptId;
 
   const { status, request, openSettings } = useCameraPermissions();
   const groupQ = useQuery({
@@ -41,6 +42,18 @@ export default function CaptureScreen() {
     queryFn: () => getGroup(id),
     enabled: !!id,
   });
+  // Always re-fetch the prompt when we have one — gives us a fresh
+  // media_type + target_video_length_seconds even if the user deep-linked
+  // here cold or the route params are stale.
+  const promptQ = useActivePrompt(promptId);
+
+  // Mode comes from the prompt when present; falls back to the legacy
+  // ?mode= route param used by the test-capture entry buttons.
+  const mode: Mode = promptQ.data
+    ? promptQ.data.media_type
+    : isMode(params.mode)
+      ? params.mode
+      : 'photo';
 
   // On first mount, kick off the OS prompt. If status flips to denied/restricted,
   // the recovery panel below explains the next step.
@@ -53,7 +66,7 @@ export default function CaptureScreen() {
   if (!id) {
     return <ErrorScreen title="Missing group id" />;
   }
-  if (status === 'unknown' || groupQ.isLoading) {
+  if (status === 'unknown' || groupQ.isLoading || (promptId && promptQ.isLoading)) {
     return <LoadingScreen />;
   }
   if (status === 'undetermined') {
@@ -85,11 +98,17 @@ export default function CaptureScreen() {
     );
   }
 
+  // Video length cap: prefer the prompt-supplied per-shot cap when present
+  // (prompts can specify shorter targets), otherwise the group's max.
+  const maxVideoSeconds =
+    promptQ.data?.target_video_length_seconds ?? groupQ.data.max_video_length_seconds;
+
   return (
     <CaptureLive
       groupId={id}
       mode={mode}
-      maxVideoSeconds={groupQ.data.max_video_length_seconds}
+      maxVideoSeconds={maxVideoSeconds}
+      promptId={promptId}
       onDone={(postId) =>
         router.replace({
           pathname: '/(app)/groups/[id]/posts/[postId]',
@@ -105,12 +124,14 @@ function CaptureLive({
   groupId,
   mode,
   maxVideoSeconds,
+  promptId,
   onDone,
   onBack,
 }: {
   groupId: string;
   mode: Mode;
   maxVideoSeconds: number;
+  promptId: string | undefined;
   onDone: (postId: string) => void;
   onBack: () => void;
 }) {
@@ -154,6 +175,7 @@ function CaptureLive({
           kind: 'prompt',
           media_type: mediaType,
           extension,
+          prompt_id: promptId,
         });
       }
       const mint = mintRef.current;
@@ -179,6 +201,7 @@ function CaptureLive({
         latitude: location?.latitude,
         longitude: location?.longitude,
         accuracy: location?.accuracy ?? undefined,
+        prompt_id: promptId,
       });
 
       // Clear retry state on success.
