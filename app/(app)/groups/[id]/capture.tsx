@@ -1,4 +1,4 @@
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -19,6 +19,7 @@ import {
   type PostMediaType,
   type UploadUrlResponse,
 } from '@/api/posts';
+import type { PromptView } from '@/api/prompts';
 import { geocodeOnce } from '@/features/capture/useGeocode';
 import { contentTypeFor, uploadBytes } from '@/features/capture/uploadBytes';
 import { useCameraPermissions } from '@/features/capture/useCameraPermissions';
@@ -136,6 +137,7 @@ function CaptureLive({
   onBack: () => void;
 }) {
   const device = useCameraDevice('back');
+  const qc = useQueryClient();
   const cameraRef = useRef<Camera>(null);
   // Holds the previously-minted upload URL across retries so confirm stays
   // idempotent on the same post_id (per /docs/02 §4 + CLAUDE.md non-neg #?).
@@ -211,6 +213,18 @@ function CaptureLive({
     },
     onSuccess: (post) => {
       setStage('idle');
+      // Warm the prompt cache with its real terminal state NOW so a re-entry
+      // to the active-prompt screen (stale FCM push tap, foreground banner)
+      // doesn't briefly re-present the capture CTA off the stale 'active'
+      // value while refetchOnMount revalidates in the background. The server
+      // maps both on-time and late captures to PromptUIState.RESPONDED, so
+      // this is deterministic — we're not computing lateness on the client
+      // (CLAUDE.md non-negotiable #4). Mirrors the photobooth setQueryData fix.
+      if (promptId) {
+        qc.setQueryData<PromptView>(['prompts', promptId], (old: PromptView | undefined) =>
+          old ? { ...old, state: 'responded' } : old,
+        );
+      }
       onDone(post.id);
     },
     onError: () => {

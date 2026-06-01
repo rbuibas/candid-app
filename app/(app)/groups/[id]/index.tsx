@@ -48,10 +48,10 @@ export default function GroupDetail() {
   const photoboothQ = useHasPhotobooth(id);
   useEffect(() => {
     if (!id) return;
-    if (photoboothQ.isLoading) return;
+    if (photoboothQ.isLoading || photoboothQ.isFetching) return;
     if (photoboothQ.data !== null) return;
     router.replace({ pathname: '/(app)/groups/[id]/photobooth', params: { id } });
-  }, [id, photoboothQ.isLoading, photoboothQ.data, router]);
+  }, [id, photoboothQ.isLoading, photoboothQ.isFetching, photoboothQ.data, router]);
 
   const cachedInvite = qc.getQueryData<{ code: string }>(['groups', id, 'invite']);
   const inviteCode = cachedInvite?.code ?? null;

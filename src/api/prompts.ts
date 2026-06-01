@@ -8,7 +8,7 @@ import { authedRequest } from './client';
  * lateness (CLAUDE.md non-negotiable #4).
  */
 export type PromptMediaType = 'photo' | 'video';
-export type PromptUIState = 'active' | 'late' | 'missed';
+export type PromptUIState = 'active' | 'late' | 'missed' | 'responded';
 
 export type PromptView = {
   id: string;

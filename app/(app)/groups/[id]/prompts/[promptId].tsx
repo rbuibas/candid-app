@@ -98,6 +98,23 @@ function PromptBody({
     onBoundaryCross,
   });
 
+  if (prompt.state === 'responded') {
+    return (
+      <FullScreen title="Prompt">
+        <View style={styles.missedBlock}>
+          <Text style={styles.missedTitle}>Already captured!</Text>
+          <Text style={styles.missedBody}>Your shot for this prompt is in.</Text>
+        </View>
+        <Pressable
+          onPress={onBack}
+          style={({ pressed }) => [styles.secondaryBtn, pressed && styles.pressed]}
+        >
+          <Text style={styles.secondaryBtnText}>Back to group</Text>
+        </Pressable>
+      </FullScreen>
+    );
+  }
+
   if (prompt.state === 'missed') {
     return (
       <FullScreen title="Prompt">

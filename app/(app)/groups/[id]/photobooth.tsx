@@ -136,9 +136,12 @@ function PhotoBoothLive({ groupId, onBack }: { groupId: string; onBack: () => vo
     await uploadBytes(avatarMint.upload_url, frame0, 'image/jpeg');
     await patchAvatar(avatarMint.storage_path);
 
-    // 4. Refresh profile + members so the new avatar shows up immediately;
-    //    invalidate the photobooth-mine query so the group detail screen
-    //    stops auto-routing the user back into the photo booth.
+    // 4. Refresh profile + members so the new avatar shows up immediately.
+    //    Seed the photobooth-mine cache with the real post object NOW so
+    //    the group detail guard sees non-null data on its very first render —
+    //    invalidating alone leaves stale null in the cache which can trigger
+    //    a re-route before the background refetch finishes.
+    qc.setQueryData(['groups', groupId, 'photobooth-mine'], stripPostRef.current);
     await Promise.all([
       qc.invalidateQueries({ queryKey: ['profile', 'me'] }),
       qc.invalidateQueries({ queryKey: ['groups', groupId, 'members'] }),
