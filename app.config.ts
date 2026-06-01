@@ -30,6 +30,7 @@ const config: ExpoConfig = {
     'expo-secure-store',
     'expo-asset',
     'expo-video',
+    '@react-native-community/datetimepicker',
     // RN Firebase config plugin — wires native init for FCM. iOS push is
     // deferred (no GoogleService-Info.plist in repo), so this currently only
     // takes effect on Android via google-services.json above.
