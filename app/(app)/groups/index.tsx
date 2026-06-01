@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { Stack, useRouter } from 'expo-router';
+import { useEffect } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -9,36 +10,23 @@ import { useSession } from '@/auth/SessionProvider';
 import { GroupListItem } from '@/features/groups/components/GroupListItem';
 import { PushDeniedBanner } from '@/notifications/PushDeniedBanner';
 
-function SignOutButton() {
-  const { signOut } = useSession();
-  return (
-    <Pressable
-      onPress={() => {
-        console.log('[ui] sign-out pressed');
-        void signOut();
-      }}
-      style={({ pressed }) => [styles.headerBtn, pressed && styles.pressed]}
-    >
-      <Text style={styles.headerBtnText}>Sign out</Text>
-    </Pressable>
-  );
-}
-
 export default function GroupsList() {
   const router = useRouter();
+  const { session, signOut } = useSession();
   const { data, isLoading, isError, error, refetch, isRefetching } = useQuery({
     queryKey: ['groups'],
     queryFn: listGroups,
   });
 
+  useEffect(() => {
+    if (session?.access_token) {
+      console.log('[auth] JWT', session.access_token);
+    }
+  }, [session?.access_token]);
+
   return (
     <SafeAreaView style={styles.safe} edges={['bottom']}>
-      <Stack.Screen
-        options={{
-          title: 'Groups',
-          headerRight: () => <SignOutButton />,
-        }}
-      />
+      <Stack.Screen options={{ title: 'Groups' }} />
 
       <PushDeniedBanner />
 
@@ -99,6 +87,14 @@ export default function GroupsList() {
         >
           <Text style={styles.outlineBtnText}>Join with code</Text>
         </Pressable>
+        <Pressable
+          onPress={() => {
+            void signOut();
+          }}
+          style={({ pressed }) => [styles.signOutBtn, pressed && styles.pressed]}
+        >
+          <Text style={styles.signOutBtnText}>Sign out</Text>
+        </Pressable>
       </View>
     </SafeAreaView>
   );
@@ -150,7 +146,11 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
   },
   secondaryBtnText: { color: '#fff', fontWeight: '600' },
-  headerBtn: { paddingHorizontal: 12, paddingVertical: 6 },
-  headerBtnText: { color: '#cf222e', fontWeight: '600', fontSize: 15 },
+  signOutBtn: {
+    paddingVertical: 14,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  signOutBtnText: { color: '#cf222e', fontWeight: '600', fontSize: 15 },
   pressed: { opacity: 0.7 },
 });
