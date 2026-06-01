@@ -10,6 +10,7 @@ import { confirmPost, createUploadUrl, type Post, type UploadUrlResponse } from 
 import { createAvatarUploadUrl, patchAvatar, type AvatarUploadUrlResponse } from '@/api/profile';
 import { Countdown } from '@/features/capture/components/Countdown';
 import { StripComposer, type StripComposerRef } from '@/features/capture/StripComposer';
+import { useBestFormat } from '@/features/capture/useBestFormat';
 import { contentTypeFor, uploadBytes } from '@/features/capture/uploadBytes';
 import { useCameraPermissions } from '@/features/capture/useCameraPermissions';
 
@@ -54,6 +55,11 @@ export default function PhotoBoothScreen() {
 
 function PhotoBoothLive({ groupId, onBack }: { groupId: string; onBack: () => void }) {
   const device = useCameraDevice('front');
+  // Same sharpest-still format selection as prompt capture — the strip becomes
+  // the avatar + first feed post, so its quality matters just as much. The
+  // booth is always photo mode (front camera, no tap-to-focus: it auto-fires on
+  // a countdown and the subject is at a fixed arm's length).
+  const format = useBestFormat(device, 'photo');
   const cameraRef = useRef<Camera>(null);
   const composerRef = useRef<StripComposerRef>(null);
   const qc = useQueryClient();
@@ -183,9 +189,16 @@ function PhotoBoothLive({ groupId, onBack }: { groupId: string; onBack: () => vo
         ref={cameraRef}
         style={StyleSheet.absoluteFill}
         device={device}
+        format={format}
         isActive={phase.kind === 'countdown' || phase.kind === 'capturing'}
         photo
         audio={false}
+        // 'quality' for the sharpest avatar/strip. The ~3s countdown between
+        // frames absorbs the slightly slower shutter, so the booth still feels
+        // instant. HDR + low-light boost where the front sensor supports them.
+        photoQualityBalance="quality"
+        photoHdr={format?.supportsPhotoHdr ?? false}
+        lowLightBoost={device.supportsLowLightBoost}
       />
 
       {/* Off-screen strip composer — only mounted once we have all 3 frames. */}

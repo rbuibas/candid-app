@@ -20,6 +20,8 @@ import {
   type UploadUrlResponse,
 } from '@/api/posts';
 import type { PromptView } from '@/api/prompts';
+import { FocusIndicator, type FocusPoint } from '@/features/capture/components/FocusIndicator';
+import { bestStabilizationMode, useBestFormat } from '@/features/capture/useBestFormat';
 import { geocodeOnce } from '@/features/capture/useGeocode';
 import { contentTypeFor, uploadBytes } from '@/features/capture/uploadBytes';
 import { useCameraPermissions } from '@/features/capture/useCameraPermissions';
@@ -137,6 +139,10 @@ function CaptureLive({
   onBack: () => void;
 }) {
   const device = useCameraDevice('back');
+  // Explicitly choose the sharpest format for this prompt's media type instead
+  // of letting vision-camera pick a balanced default (see useBestFormat).
+  const format = useBestFormat(device, mode);
+  const stabilizationMode = bestStabilizationMode(format);
   const qc = useQueryClient();
   const cameraRef = useRef<Camera>(null);
   // Holds the previously-minted upload URL across retries so confirm stays
@@ -149,6 +155,10 @@ function CaptureLive({
   const [stage, setStage] = useState<'idle' | 'capturing' | 'minting' | 'uploading' | 'confirming'>(
     'idle',
   );
+  // Tap-to-focus reticle position; `id` bumps each tap so re-tapping restarts
+  // the fade animation. Cleared automatically once the indicator fades.
+  const [focusPoint, setFocusPoint] = useState<FocusPoint | null>(null);
+  const focusSeq = useRef(0);
 
   const captureMutation = useMutation({
     mutationFn: async () => {
@@ -161,7 +171,16 @@ function CaptureLive({
         if (mode === 'photo') {
           const cam = cameraRef.current;
           if (!cam) throw new Error('Camera not ready');
-          const photo: PhotoFile = await cam.takePhoto({ flash: 'off' });
+          const photo: PhotoFile = await cam.takePhoto({
+            // Flash stays on 'auto' (no flash toggle in the UI, and the app
+            // often shoots in low light). Shutter sound off — the prompt push
+            // is the cue; the click is just noise. We intentionally do NOT pass
+            // qualityPrioritization (that moved to the <Camera photoQualityBalance>
+            // prop in vision-camera v4) nor enableAutoRedEyeReduction (adds
+            // shutter latency, and spontaneity beats red-eye here).
+            flash: 'auto',
+            enableShutterSound: false,
+          });
           fileRef.current = { uri: photo.path };
         } else {
           const video = await recordVideo(cameraRef, maxVideoSeconds, setIsRecording);
@@ -237,6 +256,20 @@ function CaptureLive({
     captureMutation.mutate();
   }, [captureMutation]);
 
+  // Tap-to-focus: hand the tapped view coordinate to the camera and pop the
+  // reticle. Guarded on device.supportsFocus (some front/budget sensors are
+  // fixed-focus). focus() can reject if a capture is in flight — ignore it.
+  const focusAt = useCallback(
+    (x: number, y: number) => {
+      const cam = cameraRef.current;
+      if (!cam || !device?.supportsFocus) return;
+      focusSeq.current += 1;
+      setFocusPoint({ x, y, id: focusSeq.current });
+      cam.focus({ x, y }).catch(() => {});
+    },
+    [device],
+  );
+
   if (!device) {
     return <ErrorScreen title="No back camera available on this device" />;
   }
@@ -250,11 +283,32 @@ function CaptureLive({
         ref={cameraRef}
         style={StyleSheet.absoluteFill}
         device={device}
+        format={format}
+        // Camera mounts on screen entry (isActive is always true here), so AF/AE
+        // have time to settle before the shutter tap — no lazy pre-warm needed.
         isActive
         photo={mode === 'photo'}
         video={mode === 'video'}
         audio={mode === 'video'}
+        // 'quality' over the 'balanced' default trades a little capture speed
+        // for higher-accuracy edge detection + AF/AE. If this feels sluggish on
+        // the test Android device, fall back to 'balanced'.
+        photoQualityBalance="quality"
+        photoHdr={mode === 'photo' && (format?.supportsPhotoHdr ?? false)}
+        lowLightBoost={device.supportsLowLightBoost}
+        videoStabilizationMode={stabilizationMode}
       />
+
+      {/* Tap-to-focus layer: sits beneath the box-none overlay so the shutter
+          and cancel controls keep their own taps, while taps on the bare
+          preview fall through to here. */}
+      {device.supportsFocus ? (
+        <View
+          style={StyleSheet.absoluteFill}
+          onStartShouldSetResponder={() => true}
+          onResponderRelease={(e) => focusAt(e.nativeEvent.locationX, e.nativeEvent.locationY)}
+        />
+      ) : null}
 
       <SafeAreaView style={styles.overlay} pointerEvents="box-none">
         <View style={styles.topBar}>
@@ -304,6 +358,9 @@ function CaptureLive({
           </View>
         ) : null}
       </SafeAreaView>
+
+      {/* Rendered last so the reticle paints above the controls. */}
+      <FocusIndicator point={focusPoint} />
     </View>
   );
 }
