@@ -1,3 +1,4 @@
+import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Stack, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
@@ -39,15 +40,57 @@ function isValidDate(s: string): boolean {
   return dt.getFullYear() === y && dt.getMonth() === m - 1 && dt.getDate() === d;
 }
 
+function toDateString(dt: Date): string {
+  const y = dt.getFullYear();
+  const m = String(dt.getMonth() + 1).padStart(2, '0');
+  const d = String(dt.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+function addDays(dt: Date, days: number): Date {
+  const next = new Date(dt);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+function parseDate(s: string): Date {
+  if (isValidDate(s)) {
+    const [y, m, d] = s.split('-').map(Number);
+    return new Date(y, m - 1, d);
+  }
+  return new Date();
+}
+
+function formatDisplay(s: string): string {
+  if (!isValidDate(s)) return s;
+  return parseDate(s).toLocaleDateString(undefined, {
+    weekday: 'short',
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  });
+}
+
 export default function CreateGroup() {
   const router = useRouter();
   const qc = useQueryClient();
 
   const [name, setName] = useState('');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
+  const [startDate, setStartDate] = useState(() => toDateString(new Date()));
+  const [endDate, setEndDate] = useState(() => toDateString(addDays(new Date(), 1)));
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [advanced, setAdvanced] = useState(DEFAULTS);
+  const [openPicker, setOpenPicker] = useState<null | 'start' | 'end'>(null);
+
+  const onPickDate = (which: 'start' | 'end') => (event: DateTimePickerEvent, selected?: Date) => {
+    // Android renders a one-shot dialog; close it on any result. iOS keeps the
+    // inline picker open until the user taps the field again.
+    if (Platform.OS === 'android') setOpenPicker(null);
+    if (event.type === 'dismissed' || !selected) return;
+    const value = toDateString(selected);
+    if (which === 'start') setStartDate(value);
+    else setEndDate(value);
+  };
 
   const trimmedName = name.trim();
   const dateError = useMemo(() => {
@@ -135,29 +178,38 @@ export default function CreateGroup() {
           </Field>
 
           <Field label="Start date">
-            <TextInput
-              value={startDate}
-              onChangeText={setStartDate}
-              placeholder="YYYY-MM-DD"
-              style={styles.input}
-              autoCapitalize="none"
-              autoCorrect={false}
-              keyboardType="numbers-and-punctuation"
-              maxLength={10}
-            />
+            <Pressable
+              onPress={() => setOpenPicker((p) => (p === 'start' ? null : 'start'))}
+              style={({ pressed }) => [styles.input, pressed && styles.pressed]}
+            >
+              <Text style={styles.dateText}>{formatDisplay(startDate)}</Text>
+            </Pressable>
+            {openPicker === 'start' ? (
+              <DateTimePicker
+                value={parseDate(startDate)}
+                mode="date"
+                display={Platform.OS === 'ios' ? 'inline' : 'default'}
+                onChange={onPickDate('start')}
+              />
+            ) : null}
           </Field>
 
           <Field label="End date">
-            <TextInput
-              value={endDate}
-              onChangeText={setEndDate}
-              placeholder="YYYY-MM-DD"
-              style={styles.input}
-              autoCapitalize="none"
-              autoCorrect={false}
-              keyboardType="numbers-and-punctuation"
-              maxLength={10}
-            />
+            <Pressable
+              onPress={() => setOpenPicker((p) => (p === 'end' ? null : 'end'))}
+              style={({ pressed }) => [styles.input, pressed && styles.pressed]}
+            >
+              <Text style={styles.dateText}>{formatDisplay(endDate)}</Text>
+            </Pressable>
+            {openPicker === 'end' ? (
+              <DateTimePicker
+                value={parseDate(endDate)}
+                mode="date"
+                display={Platform.OS === 'ios' ? 'inline' : 'default'}
+                minimumDate={parseDate(startDate)}
+                onChange={onPickDate('end')}
+              />
+            ) : null}
           </Field>
 
           {dateError ? <Text style={styles.error}>{dateError}</Text> : null}
@@ -308,6 +360,7 @@ const styles = StyleSheet.create({
     color: '#1f2328',
     backgroundColor: '#fff',
   },
+  dateText: { fontSize: 16, color: '#1f2328' },
   error: { color: '#cf222e', fontSize: 14 },
   advancedToggle: { paddingVertical: 8 },
   advancedToggleText: { color: '#1f6feb', fontWeight: '600', fontSize: 15 },
