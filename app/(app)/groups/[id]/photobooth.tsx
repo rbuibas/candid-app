@@ -23,7 +23,7 @@ type Phase =
   | { kind: 'composing' }
   | { kind: 'uploading-strip' }
   | { kind: 'uploading-avatar' }
-  | { kind: 'done'; stripPostId: string }
+  | { kind: 'done' }
   | { kind: 'error'; message: string };
 
 export default function PhotoBoothScreen() {
@@ -154,7 +154,7 @@ function PhotoBoothLive({ groupId, onBack }: { groupId: string; onBack: () => vo
       qc.invalidateQueries({ queryKey: ['groups', groupId, 'photobooth-mine'] }),
     ]);
 
-    setPhase({ kind: 'done', stripPostId: stripPostRef.current.id });
+    setPhase({ kind: 'done' });
   }, [groupId, qc]);
 
   // Drive the composing/upload sequence whenever we enter `composing`.
@@ -165,13 +165,11 @@ function PhotoBoothLive({ groupId, onBack }: { groupId: string; onBack: () => vo
     });
   }, [phase, composeAndUpload]);
 
-  // When `done`, navigate to the preview screen.
+  // When `done`, land on the group feed — the strip is already seeded into the
+  // photobooth-mine cache above, so the feed's join-guard won't bounce back.
   useEffect(() => {
     if (phase.kind !== 'done') return;
-    router.replace({
-      pathname: '/(app)/groups/[id]/posts/[postId]',
-      params: { id: groupId, postId: phase.stripPostId },
-    });
+    router.replace({ pathname: '/(app)/groups/[id]', params: { id: groupId } });
   }, [phase, router, groupId]);
 
   const retry = useCallback(() => {
