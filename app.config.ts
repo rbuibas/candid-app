@@ -29,6 +29,7 @@ const config: ExpoConfig = {
     'expo-router',
     'expo-secure-store',
     'expo-asset',
+    'expo-image',
     'expo-video',
     '@react-native-community/datetimepicker',
     // RN Firebase config plugin — wires native init for FCM. iOS push is

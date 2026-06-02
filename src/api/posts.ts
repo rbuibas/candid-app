@@ -1,4 +1,4 @@
-import { authedRequest } from './client';
+import { authedRequest, authedRequestNoContent } from './client';
 
 /**
  * Mirrors candid-api/src/app/models/post.py. Timestamps come over the wire as
@@ -75,4 +75,13 @@ export function confirmPost(body: ConfirmPostRequest): Promise<Post> {
 
 export function getPost(postId: string): Promise<PostWithMediaUrl> {
   return authedRequest<PostWithMediaUrl>(`/posts/${postId}`);
+}
+
+/**
+ * DELETE /posts/{id} — author-only; tombstones the post and purges its R2
+ * media. Returns 204 No Content. Only the post's author succeeds (the server
+ * 403s otherwise).
+ */
+export function deletePost(postId: string): Promise<void> {
+  return authedRequestNoContent(`/posts/${postId}`, { method: 'DELETE' });
 }
