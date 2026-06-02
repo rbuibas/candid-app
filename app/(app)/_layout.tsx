@@ -3,9 +3,20 @@ import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
 import { useSession } from '@/auth/SessionProvider';
 import { useTimezoneSync } from '@/auth/useTimezoneSync';
+import { useUploadQueueFlush } from '@/features/capture/useUploadQueueFlush';
 import { ForegroundBanner } from '@/notifications/ForegroundBanner';
 import { ForegroundPushProvider } from '@/notifications/ForegroundPushContext';
 import { NotificationsGate } from '@/notifications/NotificationsGate';
+
+/**
+ * Side effects that must run only while authenticated. Rendered inside the
+ * authed branch below so the offline-queue flush never fires pre-session (a
+ * pre-auth flush would 401 the pipeline). Renders nothing.
+ */
+function AuthedEffects() {
+  useUploadQueueFlush();
+  return null;
+}
 
 /**
  * Authed route group. Bounces unauthenticated callers to /(auth)/sign-in.
@@ -35,6 +46,7 @@ export default function AppLayout() {
   return (
     <ForegroundPushProvider>
       <NotificationsGate>
+        <AuthedEffects />
         <Stack screenOptions={{ headerShown: false }} />
         <ForegroundBanner />
       </NotificationsGate>
