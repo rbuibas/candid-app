@@ -7,6 +7,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ApiError } from '@/api/client';
 import { type FeedItem } from '@/api/feed';
 import { getGroup, type GroupWithLifecycle } from '@/api/groups';
+import { MissedWhileOfflineBanner } from '@/features/capture/MissedWhileOfflineBanner';
+import { UploadQueueIndicator } from '@/features/capture/UploadQueueIndicator';
 import { LifecycleBadge } from '@/features/groups/components/LifecycleBadge';
 import { FeedEmptyState } from '@/features/feed/FeedEmptyState';
 import { PostCard } from '@/features/feed/PostCard';
@@ -98,7 +100,12 @@ export default function GroupFeed() {
           data={items}
           keyExtractor={(post) => post.id}
           renderItem={({ item }) => <PostCard post={item} groupId={id} />}
-          ListHeaderComponent={<PushDeniedBanner />}
+          ListHeaderComponent={
+            <>
+              <MissedWhileOfflineBanner groupId={id} />
+              <PushDeniedBanner />
+            </>
+          }
           ListEmptyComponent={!feedQ.isFetching ? <FeedEmptyState /> : null}
           contentContainerStyle={items.length === 0 ? styles.emptyContent : undefined}
           refreshing={feedQ.isRefetching}
@@ -110,6 +117,8 @@ export default function GroupFeed() {
           }
         />
       )}
+
+      <UploadQueueIndicator />
     </SafeAreaView>
   );
 }
