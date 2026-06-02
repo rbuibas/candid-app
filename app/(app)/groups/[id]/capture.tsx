@@ -22,7 +22,11 @@ import {
 import type { PromptView } from '@/api/prompts';
 import { FocusIndicator, type FocusPoint } from '@/features/capture/components/FocusIndicator';
 import { persistCaptureFile } from '@/features/capture/queueStorage';
-import { bestStabilizationMode, useBestFormat } from '@/features/capture/useBestFormat';
+import {
+  bestStabilizationMode,
+  useBestFormat,
+  VIDEO_BITRATE_MBPS,
+} from '@/features/capture/useBestFormat';
 import { geocodeOnce } from '@/features/capture/useGeocode';
 import { contentTypeFor, uploadBytes } from '@/features/capture/uploadBytes';
 import { useCameraPermissions } from '@/features/capture/useCameraPermissions';
@@ -374,6 +378,9 @@ function CaptureLive({
         photoHdr={mode === 'photo' && (format?.supportsPhotoHdr ?? false)}
         lowLightBoost={device.supportsLowLightBoost}
         videoStabilizationMode={stabilizationMode}
+        // Phase-6 compression: cap the encoder bitrate for video prompts so R2
+        // objects stay small (see VIDEO_BITRATE_MBPS). No-op for photo mode.
+        videoBitRate={mode === 'video' ? VIDEO_BITRATE_MBPS : undefined}
       />
 
       {/* Tap-to-focus layer: sits beneath the box-none overlay so the shutter
@@ -494,6 +501,10 @@ async function recordVideo(
     let settled = false;
     cam.startRecording({
       fileType: 'mp4',
+      // h264 (vision-camera's default, stated for clarity) — universally
+      // decodable on the shared APK. The bitrate cap (Camera videoBitRate) is
+      // the size lever; h265 would shrink further but isn't a safe MVP default.
+      videoCodec: 'h264',
       onRecordingFinished: (video) => {
         if (settled) return;
         settled = true;

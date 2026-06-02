@@ -31,6 +31,24 @@ export type CaptureMode = 'photo' | 'video';
 const TARGET_VIDEO_FPS = 30;
 const TARGET_VIDEO_AREA = 1920 * 1080;
 
+/**
+ * Capture-time video bitrate cap, in Mbps — the Phase-6 client compression
+ * lever (/docs/03 §6: "video is the cost driver"; R2 storage accrues per byte).
+ *
+ * We constrain at capture rather than transcoding afterwards (no compressor
+ * library — the Phase-6 decision): vision-camera's `<Camera videoBitRate>` prop
+ * caps the hardware encoder directly. Paired with the 1080p30 format cap above,
+ * 4 Mbps yields ~5 MB for a 10s clip — typically a 3–4× cut versus a device's
+ * default 1080p bitrate (~12–17 Mbps) while staying clearly watchable for short
+ * candid moments. Lower (e.g. 2–3) saves more but starts to smear motion; the
+ * preset strings ('low' ≈ 20% under the hardware default) are the gentler knob.
+ *
+ * Codec stays the vision-camera default (h264) for universal playback across
+ * the shared APK; h265 would roughly halve size again but isn't guaranteed to
+ * decode on every guest device — a future lever, not an MVP one.
+ */
+export const VIDEO_BITRATE_MBPS = 4;
+
 function photoArea(f: CameraDeviceFormat): number {
   return f.photoWidth * f.photoHeight;
 }
