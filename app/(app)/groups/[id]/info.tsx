@@ -81,6 +81,29 @@ export default function GroupInfo() {
     },
   });
 
+  // Same dev backdoor as triggerM, but jumps straight to the camera instead of
+  // the prompt screen. Every photo/video post must be prompt-bound (PostKind is
+  // only 'prompt' | 'photobooth'; the API 422s on kind=prompt without a
+  // prompt_id), so a true promptless "test capture" can't produce a valid post
+  // — we mint a throwaway dev prompt and capture against it.
+  const testCaptureM = useMutation({
+    mutationFn: (mediaType: 'photo' | 'video') => triggerDevPrompt(id, mediaType),
+    onSuccess: (prompt) => {
+      router.push({
+        pathname: '/(app)/groups/[id]/capture',
+        params: { id, promptId: prompt.id },
+      });
+    },
+    onError: (err) => {
+      Alert.alert(
+        'Test capture failed',
+        err instanceof ApiError
+          ? `${err.status}: ${err.body || err.message}`
+          : 'Make sure the backend has POST /dev/prompts/trigger enabled (DEV_MODE=true).',
+      );
+    },
+  });
+
   const confirmDelete = () => {
     Alert.alert(
       'Delete this group?',
@@ -191,44 +214,47 @@ export default function GroupInfo() {
               <View style={styles.captureBlock}>
                 <Text style={styles.sectionLabel}>Test capture</Text>
                 <Text style={styles.captureHint}>
-                  Bypass capture — skips the prompt screen entirely.
+                  Jumps straight to the camera (skips the prompt screen). Mints a throwaway dev
+                  prompt under the hood, so it needs DEV_MODE on the API.
                 </Text>
                 <View style={styles.captureRow}>
                   <Pressable
-                    onPress={() =>
-                      router.push({
-                        pathname: '/(app)/groups/[id]/capture',
-                        params: { id, mode: 'photo' },
-                      })
-                    }
+                    onPress={() => testCaptureM.mutate('photo')}
+                    disabled={testCaptureM.isPending}
                     style={({ pressed }) => [
                       styles.secondaryBtn,
                       styles.captureBtnFlex,
+                      testCaptureM.isPending && styles.disabled,
                       pressed && styles.pressed,
                     ]}
                   >
-                    <Text style={styles.secondaryBtnText}>Test photo</Text>
+                    {testCaptureM.isPending ? (
+                      <ActivityIndicator color="#fff" size="small" />
+                    ) : (
+                      <Text style={styles.secondaryBtnText}>Test photo</Text>
+                    )}
                   </Pressable>
                   <Pressable
-                    onPress={() =>
-                      router.push({
-                        pathname: '/(app)/groups/[id]/capture',
-                        params: { id, mode: 'video' },
-                      })
-                    }
+                    onPress={() => testCaptureM.mutate('video')}
+                    disabled={testCaptureM.isPending}
                     style={({ pressed }) => [
                       styles.secondaryBtn,
                       styles.captureBtnFlex,
+                      testCaptureM.isPending && styles.disabled,
                       pressed && styles.pressed,
                     ]}
                   >
-                    <Text style={styles.secondaryBtnText}>Test video</Text>
+                    {testCaptureM.isPending ? (
+                      <ActivityIndicator color="#fff" size="small" />
+                    ) : (
+                      <Text style={styles.secondaryBtnText}>Test video</Text>
+                    )}
                   </Pressable>
                 </View>
 
                 <Text style={[styles.captureHint, styles.captureHintTop]}>
-                  Full prompt flow — creates a real prompt with a live window, exercises the
-                  prompt screen, countdown, and capture. Requires DEV_MODE on the API.
+                  Full prompt flow — creates a real prompt with a live window, exercises the prompt
+                  screen, countdown, and capture. Requires DEV_MODE on the API.
                 </Text>
                 <View style={styles.captureRow}>
                   <Pressable
