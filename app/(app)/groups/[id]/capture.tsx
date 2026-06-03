@@ -189,10 +189,11 @@ function CaptureLive({
   // queued-while-offline, group locked mid-capture (409), or window-closed (410).
   const [terminal, setTerminal] = useState<Terminal | null>(null);
   const [isRecording, setIsRecording] = useState(false);
-  // Enhanced-capture (HDR) toggle. Default on for sharpest stills; the user can
-  // flip it off to get flash + tap-to-focus instead (they're mutually exclusive
-  // with the vendor extension — see the coordination block below).
-  const [hdrEnabled, setHdrEnabled] = useState(true);
+  // Enhanced-capture toggle (HDR or low-light boost, whichever the device
+  // offers). Default on for best stills; the user can flip it off to get flash
+  // + tap-to-focus instead (mutually exclusive with the vendor extension — see
+  // the coordination block below).
+  const [enhanceEnabled, setEnhanceEnabled] = useState(true);
   const [stage, setStage] = useState<'idle' | 'capturing' | 'minting' | 'uploading' | 'confirming'>(
     'idle',
   );
@@ -208,13 +209,19 @@ function CaptureLive({
   // takePhoto({ flash: 'auto' }) throws FlashUnavailableError ("does not have a
   // flash unit") and cam.focus() throws FocusNotSupportedError. The two
   // extensions also can't bind together (vision-camera throws
-  // LowLightBoostNotSupportedWithHdr at configure time). So we treat HDR as the
-  // user-toggleable enhancement (default on), low-light boost as the fallback
-  // enhancement only when HDR isn't active, and flash + tap-to-focus as only
-  // available in the plain path where no extension is bound.
+  // LowLightBoostNotSupportedWithHdr at configure time).
+  //
+  // So "enhanced mode" (the user toggle, default on) means: prefer HDR, fall
+  // back to low-light boost when HDR isn't available on this device/format —
+  // whichever one the hardware offers. Turning it off binds NO extension, which
+  // is the only path where flash + tap-to-focus work. The Pixel 7, for example,
+  // exposes low-light boost but not photo-HDR, so the active enhancement there
+  // is NIGHT, not HDR — the toggle has to govern both, not just HDR.
   const hdrSupported = mode === 'photo' && (format?.supportsPhotoHdr ?? false);
-  const photoHdrActive = hdrSupported && hdrEnabled;
-  const lowLightActive = hdrEnabled && !photoHdrActive && (device?.supportsLowLightBoost ?? false);
+  const lowLightSupported = mode === 'photo' && (device?.supportsLowLightBoost ?? false);
+  const enhanceAvailable = hdrSupported || lowLightSupported;
+  const photoHdrActive = enhanceEnabled && hdrSupported;
+  const lowLightActive = enhanceEnabled && !photoHdrActive && lowLightSupported;
   const extensionActive = photoHdrActive || lowLightActive;
   const focusEnabled = (device?.supportsFocus ?? false) && !extensionActive;
 
@@ -483,19 +490,27 @@ function CaptureLive({
             <Text style={styles.closeBtnText}>Cancel</Text>
           </Pressable>
           <View style={styles.topRight}>
-            {/* HDR toggle: only when the device/format actually supports it.
-                Off re-enables flash + tap-to-focus (mutually exclusive with the
-                HDR vendor extension). Locked while a capture is in flight to
-                avoid reconfiguring the session mid-shot. */}
-            {hdrSupported ? (
+            {/* Enhance toggle: shown whenever the device offers HDR or low-light
+                boost. On = the vendor extension (no flash, no tap-to-focus);
+                off = plain path with flash auto + tap-to-focus. Labelled with
+                the mode actually in effect so it's honest on devices that only
+                offer one of the two. Locked mid-capture to avoid reconfiguring
+                the session during a shot. */}
+            {enhanceAvailable ? (
               <Pressable
-                onPress={() => setHdrEnabled((v) => !v)}
+                onPress={() => setEnhanceEnabled((v) => !v)}
                 disabled={isPending}
                 hitSlop={12}
-                style={[styles.hdrChip, !hdrEnabled && styles.hdrChipOff]}
+                style={[styles.hdrChip, !enhanceEnabled && styles.hdrChipOff]}
               >
-                <Text style={[styles.hdrChipText, !hdrEnabled && styles.hdrChipTextOff]}>
-                  {hdrEnabled ? 'HDR' : 'HDR off'}
+                <Text style={[styles.hdrChipText, !enhanceEnabled && styles.hdrChipTextOff]}>
+                  {enhanceEnabled
+                    ? photoHdrActive
+                      ? 'HDR'
+                      : 'Low light'
+                    : device.hasFlash
+                      ? 'Flash'
+                      : 'Standard'}
                 </Text>
               </Pressable>
             ) : null}
