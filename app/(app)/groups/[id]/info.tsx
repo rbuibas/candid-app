@@ -15,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ApiError } from '@/api/client';
 import { deleteGroup, getGroup, type GroupWithLifecycle } from '@/api/groups';
 import { listMembers, type GroupMember } from '@/api/members';
+import { triggerDevPrompt } from '@/api/prompts';
 import { useSession } from '@/auth/SessionProvider';
 import { LifecycleBadge } from '@/features/groups/components/LifecycleBadge';
 import { MemberAvatar } from '@/features/groups/components/MemberAvatar';
@@ -59,6 +60,24 @@ export default function GroupInfo() {
       qc.removeQueries({ queryKey: ['groups', id, 'invite'] });
       // Pop both info and the (now-deleted) feed, landing back on the list.
       router.dismissTo('/(app)/groups');
+    },
+  });
+
+  const triggerM = useMutation({
+    mutationFn: (mediaType: 'photo' | 'video') => triggerDevPrompt(id, mediaType),
+    onSuccess: (prompt) => {
+      router.push({
+        pathname: '/(app)/groups/[id]/prompts/[promptId]',
+        params: { id, promptId: prompt.id },
+      });
+    },
+    onError: (err) => {
+      Alert.alert(
+        'Trigger failed',
+        err instanceof ApiError
+          ? `${err.status}: ${err.body || err.message}`
+          : 'Make sure the backend has POST /dev/prompts/trigger enabled (DEV_MODE=true).',
+      );
     },
   });
 
@@ -172,7 +191,7 @@ export default function GroupInfo() {
               <View style={styles.captureBlock}>
                 <Text style={styles.sectionLabel}>Test capture</Text>
                 <Text style={styles.captureHint}>
-                  Stand-in for the prompt-driven entry that arrives in Phase 4.
+                  Bypass capture — skips the prompt screen entirely.
                 </Text>
                 <View style={styles.captureRow}>
                   <Pressable
@@ -206,6 +225,46 @@ export default function GroupInfo() {
                     <Text style={styles.secondaryBtnText}>Test video</Text>
                   </Pressable>
                 </View>
+
+                <Text style={[styles.captureHint, styles.captureHintTop]}>
+                  Full prompt flow — creates a real prompt with a live window, exercises the
+                  prompt screen, countdown, and capture. Requires DEV_MODE on the API.
+                </Text>
+                <View style={styles.captureRow}>
+                  <Pressable
+                    onPress={() => triggerM.mutate('photo')}
+                    disabled={triggerM.isPending}
+                    style={({ pressed }) => [
+                      styles.secondaryBtn,
+                      styles.captureBtnFlex,
+                      triggerM.isPending && styles.disabled,
+                      pressed && styles.pressed,
+                    ]}
+                  >
+                    {triggerM.isPending ? (
+                      <ActivityIndicator color="#fff" size="small" />
+                    ) : (
+                      <Text style={styles.secondaryBtnText}>Trigger photo</Text>
+                    )}
+                  </Pressable>
+                  <Pressable
+                    onPress={() => triggerM.mutate('video')}
+                    disabled={triggerM.isPending}
+                    style={({ pressed }) => [
+                      styles.secondaryBtn,
+                      styles.captureBtnFlex,
+                      triggerM.isPending && styles.disabled,
+                      pressed && styles.pressed,
+                    ]}
+                  >
+                    {triggerM.isPending ? (
+                      <ActivityIndicator color="#fff" size="small" />
+                    ) : (
+                      <Text style={styles.secondaryBtnText}>Trigger video</Text>
+                    )}
+                  </Pressable>
+                </View>
+
                 <Pressable
                   onPress={() =>
                     router.push({
@@ -320,6 +379,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#f6f8fa',
   },
   captureHint: { fontSize: 12, color: '#656d76' },
+  captureHintTop: { marginTop: 8 },
   captureRow: { flexDirection: 'row', gap: 12, marginTop: 4 },
   captureBtnFlex: { flex: 1, alignSelf: 'auto', alignItems: 'center' },
   primaryBtn: {

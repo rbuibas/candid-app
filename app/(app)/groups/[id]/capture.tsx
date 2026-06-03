@@ -151,6 +151,13 @@ function CaptureLive({
   onLeave: () => void;
 }) {
   const device = useCameraDevice('back');
+  // Log device capabilities on every device change so we can verify flash
+  // detection in logs (search "[Capture]" in Metro / logcat).
+  useEffect(() => {
+    if (device) {
+      console.log('[Capture] device:', device.name, 'hasFlash:', device.hasFlash, 'hasTorch:', device.hasTorch, 'supportsFocus:', device.supportsFocus);
+    }
+  }, [device]);
   // Explicitly choose the sharpest format for this prompt's media type instead
   // of letting vision-camera pick a balanced default (see useBestFormat).
   const format = useBestFormat(device, mode);
@@ -229,14 +236,19 @@ function CaptureLive({
         if (mode === 'photo') {
           const cam = cameraRef.current;
           if (!cam) throw new Error('Camera not ready');
+          const flashMode = device?.hasFlash ? 'auto' : 'off';
+          console.log('[Capture] takePhoto flash:', flashMode, '(device.hasFlash:', device?.hasFlash, ')');
           const photo: PhotoFile = await cam.takePhoto({
-            // Flash stays on 'auto' (no flash toggle in the UI, and the app
-            // often shoots in low light). Shutter sound off — the prompt push
-            // is the cue; the click is just noise. We intentionally do NOT pass
-            // qualityPrioritization (that moved to the <Camera photoQualityBalance>
-            // prop in vision-camera v4) nor enableAutoRedEyeReduction (adds
-            // shutter latency, and spontaneity beats red-eye here).
-            flash: 'auto',
+            // Flash 'auto' when the device has a flash unit (no toggle in the
+            // UI, and the app often shoots in low light), else 'off' — passing
+            // a non-'off' flash to a flashless device makes vision-camera throw
+            // ("camera device does not have a flash unit"). Shutter sound off —
+            // the prompt push is the cue; the click is just noise. We
+            // intentionally do NOT pass qualityPrioritization (that moved to the
+            // <Camera photoQualityBalance> prop in vision-camera v4) nor
+            // enableAutoRedEyeReduction (adds shutter latency, and spontaneity
+            // beats red-eye here).
+            flash: flashMode,
             enableShutterSound: false,
           });
           fileRef.current = { uri: photo.path };

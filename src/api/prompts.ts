@@ -28,3 +28,27 @@ export function getPrompt(promptId: string): Promise<PromptView> {
 export function listActivePrompts(): Promise<PromptView[]> {
   return authedRequest<PromptView[]>('/prompts/active');
 }
+
+/**
+ * Dev backdoor: creates and immediately dispatches a prompt for the calling
+ * user in the given group, then returns it as a PromptView. Navigating to
+ * the prompt screen with the returned id exercises the full real flow
+ * (window countdown, lateness state, capture CTA) without waiting for the
+ * scheduler.
+ *
+ * Requires the backend to expose POST /dev/prompts/trigger (candid-api):
+ *   - Only enabled when DEV_MODE=true env var is set (never in production).
+ *   - Body: { group_id: string, media_type: "photo" | "video" }
+ *   - Response: PromptView (same shape as GET /prompts/{id})
+ *   - Sets dispatched_at = now(), uses the group's on_time / late windows.
+ */
+export function triggerDevPrompt(
+  groupId: string,
+  mediaType: PromptMediaType,
+): Promise<PromptView> {
+  return authedRequest<PromptView>('/dev/prompts/trigger', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ group_id: groupId, media_type: mediaType }),
+  });
+}
