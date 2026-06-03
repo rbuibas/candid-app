@@ -184,3 +184,32 @@ src/
 ```
 
 Split repos (`candid-api`, `candid-app`); `CLAUDE.md` lives at the root of each.
+
+---
+
+## 8. Dev / testing backdoors
+
+These endpoints and affordances exist **only when `DEV_MODE=true`** is set in the API's environment (never on the production Render service).
+
+### `POST /dev/prompts/trigger`
+
+Creates and immediately dispatches a prompt for the calling user in a given group, bypassing the scheduler. Use it to test the full prompt → capture flow on a real device without waiting for the hourly generator or the per-minute dispatcher.
+
+**Request**
+```json
+{ "group_id": "<uuid>", "media_type": "photo" | "video" }
+```
+
+**Response** — `PromptView` (same shape as `GET /prompts/{id}`)
+
+**Behaviour**
+- Sets `dispatched_at = now()` and `status = 'dispatched'`.
+- Uses the group's existing `response_window_seconds` / `late_window_seconds` to compute `on_time_deadline` and `late_deadline`.
+- Returns the full `PromptView` so the caller can navigate directly to the prompt screen.
+
+**Mobile entry point** — Info screen → **Test capture** section → **Trigger photo / Trigger video** buttons. On success the app navigates to `/(app)/groups/[id]/prompts/[promptId]`, landing on the real prompt screen with a live countdown.
+
+**`candid-api` implementation checklist**
+- Add `src/app/routers/dev.py` with the route, guarded by `settings.dev_mode`.
+- Mount it in `main.py` only when `settings.dev_mode` is true.
+- Add `DEV_MODE=false` to the production Render env group and `DEV_MODE=true` to the local `.env` / staging env group.
