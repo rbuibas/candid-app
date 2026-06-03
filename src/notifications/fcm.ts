@@ -1,4 +1,4 @@
-import messaging from '@react-native-firebase/messaging';
+import { getMessaging, getToken, onTokenRefresh } from '@react-native-firebase/messaging';
 import { Platform } from 'react-native';
 
 import { registerDevice, unregisterDevice, type DevicePlatform } from '@/api/devices';
@@ -24,7 +24,7 @@ function platform(): DevicePlatform | null {
 export async function getFcmToken(): Promise<string | null> {
   if (platform() === null) return null;
   try {
-    const token = await messaging().getToken();
+    const token = await getToken(getMessaging());
     return token || null;
   } catch {
     return null;
@@ -54,7 +54,7 @@ export async function registerThisDevice(): Promise<string | null> {
  */
 export function subscribeTokenRefresh(): () => void {
   if (platform() !== 'android') return () => {};
-  return messaging().onTokenRefresh((token) => {
+  return onTokenRefresh(getMessaging(), (token) => {
     void registerDevice({ fcm_token: token, platform: 'android' }).catch(() => {});
   });
 }

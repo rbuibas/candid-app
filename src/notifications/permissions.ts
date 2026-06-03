@@ -1,5 +1,8 @@
-import messaging, {
+import {
   AuthorizationStatus,
+  getMessaging,
+  hasPermission,
+  requestPermission as requestMessagingPermission,
   type FirebaseMessagingTypes,
 } from '@react-native-firebase/messaging';
 import { useCallback, useEffect, useState } from 'react';
@@ -33,7 +36,7 @@ function fromAuthStatus(status: FirebaseMessagingTypes.AuthorizationStatus): Pus
 export async function getPermissionStatus(): Promise<PushPermissionStatus> {
   if (Platform.OS !== 'android' && Platform.OS !== 'ios') return 'unknown';
   try {
-    return fromAuthStatus(await messaging().hasPermission());
+    return fromAuthStatus(await hasPermission(getMessaging()));
   } catch {
     return 'unknown';
   }
@@ -47,7 +50,7 @@ export async function getPermissionStatus(): Promise<PushPermissionStatus> {
  */
 export async function requestPermission(): Promise<PushPermissionStatus> {
   try {
-    return fromAuthStatus(await messaging().requestPermission());
+    return fromAuthStatus(await requestMessagingPermission(getMessaging()));
   } catch {
     return 'denied';
   }

@@ -4,7 +4,7 @@ import * as SecureStore from 'expo-secure-store';
  * Persistent "we've shown the push-permission rationale and called
  * requestPermission at least once" flag.
  *
- * Why this exists: on Android, `messaging().hasPermission()` only returns
+ * Why this exists: on Android, `hasPermission()` only returns
  * AUTHORIZED or DENIED — there is no NOT_DETERMINED. A fresh install with
  * notifications never asked shows up as DENIED from the very first read, so
  * we can't use status alone to decide whether to show the rationale modal.

@@ -1,4 +1,10 @@
-import messaging, { type FirebaseMessagingTypes } from '@react-native-firebase/messaging';
+import {
+  getInitialNotification,
+  getMessaging,
+  onMessage,
+  onNotificationOpenedApp,
+  type FirebaseMessagingTypes,
+} from '@react-native-firebase/messaging';
 import { useRouter, type Router } from 'expo-router';
 import { useEffect } from 'react';
 
@@ -30,14 +36,15 @@ export function usePushHandlers(): void {
   const { show } = useForegroundPush();
 
   useEffect(() => {
-    const onMessageUnsub = messaging().onMessage(
-      async (msg: FirebaseMessagingTypes.RemoteMessage) => {
-        const payload = parsePromptPushPayload(msg.data);
-        if (payload) show(payload);
-      },
-    );
+    const fcm = getMessaging();
 
-    const onOpenedUnsub = messaging().onNotificationOpenedApp(
+    const onMessageUnsub = onMessage(fcm, async (msg: FirebaseMessagingTypes.RemoteMessage) => {
+      const payload = parsePromptPushPayload(msg.data);
+      if (payload) show(payload);
+    });
+
+    const onOpenedUnsub = onNotificationOpenedApp(
+      fcm,
       (msg: FirebaseMessagingTypes.RemoteMessage | null) => {
         const payload = parsePromptPushPayload(msg?.data);
         if (payload) routeToPrompt(router, payload);
@@ -45,12 +52,10 @@ export function usePushHandlers(): void {
     );
 
     // Cold-start: was the app opened FROM a push? If so, route once.
-    void messaging()
-      .getInitialNotification()
-      .then((msg) => {
-        const payload = parsePromptPushPayload(msg?.data);
-        if (payload) routeToPrompt(router, payload);
-      });
+    void getInitialNotification(fcm).then((msg) => {
+      const payload = parsePromptPushPayload(msg?.data);
+      if (payload) routeToPrompt(router, payload);
+    });
 
     return () => {
       onMessageUnsub();
