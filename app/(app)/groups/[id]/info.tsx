@@ -116,6 +116,9 @@ export default function GroupInfo() {
 
   const group: GroupWithLifecycle = groupQ.data;
   const isCreator = !!session && group.created_by === session.user.id;
+  // A locked group is read-only (/docs/02 §6): suppress every capture entry
+  // point. The test-capture stand-in and the photo-booth opener both go.
+  const isLocked = group.lifecycle === 'locked';
 
   return (
     <SafeAreaView style={styles.safe} edges={['bottom']}>
@@ -157,55 +160,65 @@ export default function GroupInfo() {
               )}
             </View>
 
-            <View style={styles.captureBlock}>
-              <Text style={styles.sectionLabel}>Test capture</Text>
-              <Text style={styles.captureHint}>
-                Stand-in for the prompt-driven entry that arrives in Phase 4.
-              </Text>
-              <View style={styles.captureRow}>
+            {isLocked ? (
+              <View style={styles.captureBlock}>
+                <Text style={styles.sectionLabel}>Event ended</Text>
+                <Text style={styles.captureHint}>
+                  This group is read-only — captures and prompts are closed. The feed stays
+                  viewable.
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.captureBlock}>
+                <Text style={styles.sectionLabel}>Test capture</Text>
+                <Text style={styles.captureHint}>
+                  Stand-in for the prompt-driven entry that arrives in Phase 4.
+                </Text>
+                <View style={styles.captureRow}>
+                  <Pressable
+                    onPress={() =>
+                      router.push({
+                        pathname: '/(app)/groups/[id]/capture',
+                        params: { id, mode: 'photo' },
+                      })
+                    }
+                    style={({ pressed }) => [
+                      styles.secondaryBtn,
+                      styles.captureBtnFlex,
+                      pressed && styles.pressed,
+                    ]}
+                  >
+                    <Text style={styles.secondaryBtnText}>Test photo</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() =>
+                      router.push({
+                        pathname: '/(app)/groups/[id]/capture',
+                        params: { id, mode: 'video' },
+                      })
+                    }
+                    style={({ pressed }) => [
+                      styles.secondaryBtn,
+                      styles.captureBtnFlex,
+                      pressed && styles.pressed,
+                    ]}
+                  >
+                    <Text style={styles.secondaryBtnText}>Test video</Text>
+                  </Pressable>
+                </View>
                 <Pressable
                   onPress={() =>
                     router.push({
-                      pathname: '/(app)/groups/[id]/capture',
-                      params: { id, mode: 'photo' },
+                      pathname: '/(app)/groups/[id]/photobooth',
+                      params: { id },
                     })
                   }
-                  style={({ pressed }) => [
-                    styles.secondaryBtn,
-                    styles.captureBtnFlex,
-                    pressed && styles.pressed,
-                  ]}
+                  style={({ pressed }) => [styles.primaryBtn, pressed && styles.pressed]}
                 >
-                  <Text style={styles.secondaryBtnText}>Test photo</Text>
-                </Pressable>
-                <Pressable
-                  onPress={() =>
-                    router.push({
-                      pathname: '/(app)/groups/[id]/capture',
-                      params: { id, mode: 'video' },
-                    })
-                  }
-                  style={({ pressed }) => [
-                    styles.secondaryBtn,
-                    styles.captureBtnFlex,
-                    pressed && styles.pressed,
-                  ]}
-                >
-                  <Text style={styles.secondaryBtnText}>Test video</Text>
+                  <Text style={styles.primaryBtnText}>Open photo booth</Text>
                 </Pressable>
               </View>
-              <Pressable
-                onPress={() =>
-                  router.push({
-                    pathname: '/(app)/groups/[id]/photobooth',
-                    params: { id },
-                  })
-                }
-                style={({ pressed }) => [styles.primaryBtn, pressed && styles.pressed]}
-              >
-                <Text style={styles.primaryBtnText}>Open photo booth</Text>
-              </Pressable>
-            </View>
+            )}
 
             <Text style={styles.sectionLabel}>Members</Text>
             {membersQ.isLoading ? <ActivityIndicator style={styles.membersLoading} /> : null}

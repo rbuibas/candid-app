@@ -1,9 +1,11 @@
+import { useQuery } from '@tanstack/react-query';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ApiError } from '@/api/client';
+import { getGroup } from '@/api/groups';
 import type { PromptView } from '@/api/prompts';
 import { useActivePrompt } from '@/features/prompt/useActivePrompt';
 import { usePromptCountdown } from '@/features/prompt/usePromptCountdown';
@@ -23,6 +25,13 @@ export default function ActivePromptScreen() {
   const { id, promptId } = params;
   const router = useRouter();
   const promptQ = useActivePrompt(promptId);
+  // A stale push could deep-link here after the group locked. Read the (cached)
+  // group so we can show "event ended" instead of a dead capture CTA.
+  const groupQ = useQuery({
+    queryKey: ['groups', id],
+    queryFn: () => getGroup(id),
+    enabled: !!id,
+  });
 
   if (!id || !promptId) {
     return (
@@ -64,6 +73,7 @@ export default function ActivePromptScreen() {
   return (
     <PromptBody
       prompt={promptQ.data}
+      isLocked={groupQ.data?.lifecycle === 'locked'}
       onRefetch={() => promptQ.refetch()}
       onCapture={() =>
         router.push({
@@ -78,11 +88,13 @@ export default function ActivePromptScreen() {
 
 function PromptBody({
   prompt,
+  isLocked,
   onRefetch,
   onCapture,
   onBack,
 }: {
   prompt: PromptView;
+  isLocked: boolean;
   onRefetch: () => void;
   onCapture: () => void;
   onBack: () => void;
@@ -97,6 +109,27 @@ function PromptBody({
     lateDeadline: prompt.late_deadline,
     onBoundaryCross,
   });
+
+  // Group locked out from under this prompt — no CTA, just an honest exit.
+  // Checked after the hooks above so hook order stays unconditional.
+  if (isLocked) {
+    return (
+      <FullScreen title="Prompt">
+        <View style={styles.missedBlock}>
+          <Text style={styles.missedTitle}>Event ended</Text>
+          <Text style={styles.missedBody}>
+            This group is read-only now. The feed is still yours to browse.
+          </Text>
+        </View>
+        <Pressable
+          onPress={onBack}
+          style={({ pressed }) => [styles.secondaryBtn, pressed && styles.pressed]}
+        >
+          <Text style={styles.secondaryBtnText}>Back to group</Text>
+        </Pressable>
+      </FullScreen>
+    );
+  }
 
   if (prompt.state === 'responded') {
     return (

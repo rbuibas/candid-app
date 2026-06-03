@@ -21,11 +21,20 @@ import {
 } from '@/api/posts';
 import type { PromptView } from '@/api/prompts';
 import { FocusIndicator, type FocusPoint } from '@/features/capture/components/FocusIndicator';
-import { bestStabilizationMode, useBestFormat } from '@/features/capture/useBestFormat';
+import { persistCaptureFile } from '@/features/capture/queueStorage';
+import {
+  bestStabilizationMode,
+  useBestFormat,
+  VIDEO_BITRATE_MBPS,
+} from '@/features/capture/useBestFormat';
 import { geocodeOnce } from '@/features/capture/useGeocode';
 import { contentTypeFor, uploadBytes } from '@/features/capture/uploadBytes';
 import { useCameraPermissions } from '@/features/capture/useCameraPermissions';
+import { isGroupLockedError, isMissedError, isRetryable } from '@/features/capture/uploadErrors';
 import { useActivePrompt } from '@/features/prompt/useActivePrompt';
+import { makeQueueId, useUploadQueue } from '@/stores/uploadQueue';
+
+type Terminal = 'saved-offline' | 'locked' | 'missed';
 
 type Mode = 'photo' | 'video';
 
@@ -119,6 +128,7 @@ export default function CaptureScreen() {
         })
       }
       onBack={() => router.back()}
+      onLeave={() => router.replace({ pathname: '/(app)/groups/[id]', params: { id } })}
     />
   );
 }
@@ -130,6 +140,7 @@ function CaptureLive({
   promptId,
   onDone,
   onBack,
+  onLeave,
 }: {
   groupId: string;
   mode: Mode;
@@ -137,6 +148,7 @@ function CaptureLive({
   promptId: string | undefined;
   onDone: (postId: string) => void;
   onBack: () => void;
+  onLeave: () => void;
 }) {
   const device = useCameraDevice('back');
   // Explicitly choose the sharpest format for this prompt's media type instead
@@ -151,6 +163,15 @@ function CaptureLive({
   // Holds the file URI between PUT failures so we don't re-record / re-snap
   // a frame the user already captured.
   const fileRef = useRef<{ uri: string; durationSeconds?: number } | null>(null);
+  // The original capture moment, set once when the media is taken. Used for
+  // confirm's `captured_at` AND for the offline queue item — so a post that
+  // flushes minutes later still carries when it was actually shot (display
+  // only; the server still owns on-time/late from its own receipt time).
+  const capturedAtRef = useRef<string | null>(null);
+  const enqueue = useUploadQueue((s) => s.enqueue);
+  // Terminal outcomes that replace the live camera with a full-screen message:
+  // queued-while-offline, group locked mid-capture (409), or window-closed (410).
+  const [terminal, setTerminal] = useState<Terminal | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [stage, setStage] = useState<'idle' | 'capturing' | 'minting' | 'uploading' | 'confirming'>(
     'idle',
@@ -159,6 +180,43 @@ function CaptureLive({
   // the fade animation. Cleared automatically once the indicator fades.
   const [focusPoint, setFocusPoint] = useState<FocusPoint | null>(null);
   const focusSeq = useRef(0);
+
+  // Move the already-captured file into the durable queue and record its
+  // metadata so it can flush on reconnect. Returns false if we couldn't even
+  // persist the bytes (then we fall back to the inline error+retry).
+  const enqueueCurrentCapture = useCallback(async (): Promise<boolean> => {
+    const file = fileRef.current;
+    if (!file) return false;
+    const mediaType: PostMediaType = mode === 'video' ? 'video' : 'photo';
+    const extension = mode === 'video' ? 'mp4' : 'jpg';
+    const id = makeQueueId();
+    let localFilePath: string;
+    try {
+      localFilePath = await persistCaptureFile(file.uri, id, extension);
+    } catch {
+      return false;
+    }
+    // Geocode is best-effort and works offline via GPS; never blocks (3s cap).
+    const location = await geocodeOnce(3000);
+    enqueue({
+      id,
+      localFilePath,
+      groupId,
+      kind: 'prompt',
+      mediaType,
+      promptId,
+      capturedAt: capturedAtRef.current ?? new Date().toISOString(),
+      durationSeconds: file.durationSeconds,
+      latitude: location?.latitude,
+      longitude: location?.longitude,
+      accuracy: location?.accuracy ?? undefined,
+    });
+    // A fresh capture should start clean — the queue owns these bytes now.
+    fileRef.current = null;
+    mintRef.current = null;
+    capturedAtRef.current = null;
+    return true;
+  }, [mode, groupId, promptId, enqueue]);
 
   const captureMutation = useMutation({
     mutationFn: async () => {
@@ -186,6 +244,7 @@ function CaptureLive({
           const video = await recordVideo(cameraRef, maxVideoSeconds, setIsRecording);
           fileRef.current = { uri: video.path, durationSeconds: Math.round(video.duration) };
         }
+        capturedAtRef.current = new Date().toISOString();
       }
 
       // 2. Mint upload URL (skip if a prior attempt already minted one).
@@ -217,7 +276,7 @@ function CaptureLive({
         kind: 'prompt',
         media_type: mediaType,
         storage_path: mint.storage_path,
-        captured_at: new Date().toISOString(),
+        captured_at: capturedAtRef.current ?? new Date().toISOString(),
         duration_seconds: file.durationSeconds,
         latitude: location?.latitude,
         longitude: location?.longitude,
@@ -228,6 +287,7 @@ function CaptureLive({
       // Clear retry state on success.
       mintRef.current = null;
       fileRef.current = null;
+      capturedAtRef.current = null;
       return post;
     },
     onSuccess: (post) => {
@@ -246,8 +306,29 @@ function CaptureLive({
       }
       onDone(post.id);
     },
-    onError: () => {
+    onError: (err) => {
       setStage('idle');
+      // Capture raced past the group's end_date lock — the event is over.
+      if (isGroupLockedError(err)) {
+        setTerminal('locked');
+        return;
+      }
+      // The prompt window closed before this confirm landed (online but slow).
+      if (isMissedError(err)) {
+        setTerminal('missed');
+        return;
+      }
+      // Offline or a transient drop → queue the raw capture and flush later.
+      // Set the terminal state optimistically (persist is effectively instant)
+      // and roll back to the inline error only if we couldn't store the bytes.
+      if (isRetryable(err)) {
+        setTerminal('saved-offline');
+        void enqueueCurrentCapture().then((ok) => {
+          if (!ok) setTerminal(null);
+        });
+        return;
+      }
+      // Anything else (hard 4xx) → leave the inline error+Retry block visible.
     },
   });
 
@@ -297,6 +378,9 @@ function CaptureLive({
         photoHdr={mode === 'photo' && (format?.supportsPhotoHdr ?? false)}
         lowLightBoost={device.supportsLowLightBoost}
         videoStabilizationMode={stabilizationMode}
+        // Phase-6 compression: cap the encoder bitrate for video prompts so R2
+        // objects stay small (see VIDEO_BITRATE_MBPS). No-op for photo mode.
+        videoBitRate={mode === 'video' ? VIDEO_BITRATE_MBPS : undefined}
       />
 
       {/* Tap-to-focus layer: sits beneath the box-none overlay so the shutter
@@ -342,7 +426,7 @@ function CaptureLive({
           </Pressable>
         </View>
 
-        {captureMutation.isError ? (
+        {captureMutation.isError && terminal === null ? (
           <View style={styles.errorBlock} pointerEvents="auto">
             <Text style={styles.errorText}>
               {captureMutation.error instanceof ApiError
@@ -361,6 +445,47 @@ function CaptureLive({
 
       {/* Rendered last so the reticle paints above the controls. */}
       <FocusIndicator point={focusPoint} />
+
+      {terminal ? <TerminalOverlay kind={terminal} onLeave={onLeave} /> : null}
+    </View>
+  );
+}
+
+/**
+ * Full-screen takeover shown after a capture reaches a terminal outcome:
+ *   - saved-offline → queued; will upload on reconnect (Phase-6 §B),
+ *   - locked        → group ended mid-capture (409 group_locked),
+ *   - missed        → the prompt window closed (410) before confirm landed.
+ * All three route back to the feed; none re-present the camera.
+ */
+function TerminalOverlay({ kind, onLeave }: { kind: Terminal; onLeave: () => void }) {
+  const copy: Record<Terminal, { title: string; body: string }> = {
+    'saved-offline': {
+      title: 'Saved',
+      body: "You're offline — we'll upload this automatically when you're back online.",
+    },
+    locked: {
+      title: 'Event ended',
+      body: 'This group is now read-only. Capture is closed, but the feed is still yours to browse.',
+    },
+    missed: {
+      title: 'You missed this one',
+      body: 'The window closed before your capture landed. The next prompt is on its way.',
+    },
+  };
+  const { title, body } = copy[kind];
+  return (
+    <View style={styles.terminalOverlay}>
+      <View style={styles.terminalCard}>
+        <Text style={styles.terminalTitle}>{title}</Text>
+        <Text style={styles.terminalBody}>{body}</Text>
+        <Pressable
+          onPress={onLeave}
+          style={({ pressed }) => [styles.primaryBtn, pressed && styles.pressed]}
+        >
+          <Text style={styles.primaryBtnText}>Back to feed</Text>
+        </Pressable>
+      </View>
     </View>
   );
 }
@@ -376,6 +501,10 @@ async function recordVideo(
     let settled = false;
     cam.startRecording({
       fileType: 'mp4',
+      // h264 (vision-camera's default, stated for clarity) — universally
+      // decodable on the shared APK. The bitrate cap (Camera videoBitRate) is
+      // the size lever; h265 would shrink further but isn't a safe MVP default.
+      videoCodec: 'h264',
       onRecordingFinished: (video) => {
         if (settled) return;
         settled = true;
@@ -568,6 +697,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   retryBtnText: { color: '#1f2328', fontWeight: '700' },
+  terminalOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.85)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  terminalCard: {
+    width: '100%',
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 24,
+    gap: 12,
+  },
+  terminalTitle: { fontSize: 22, fontWeight: '700', color: '#1f2328' },
+  terminalBody: { fontSize: 15, color: '#656d76', lineHeight: 22 },
   rationaleWrap: {
     flex: 1,
     padding: 24,

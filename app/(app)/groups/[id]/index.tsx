@@ -7,6 +7,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ApiError } from '@/api/client';
 import { type FeedItem } from '@/api/feed';
 import { getGroup, type GroupWithLifecycle } from '@/api/groups';
+import { MissedWhileOfflineBanner } from '@/features/capture/MissedWhileOfflineBanner';
+import { UploadQueueIndicator } from '@/features/capture/UploadQueueIndicator';
 import { LifecycleBadge } from '@/features/groups/components/LifecycleBadge';
 import { FeedEmptyState } from '@/features/feed/FeedEmptyState';
 import { PostCard } from '@/features/feed/PostCard';
@@ -33,13 +35,28 @@ export default function GroupFeed() {
   // Photo-booth-on-join: if the caller has no strip in this group yet, bounce
   // them to the photo booth before they reach the feed. Replace (not push) so
   // back-nav doesn't loop them straight back here.
+  //
+  // A LOCKED group never fires the booth (/docs/02 §6): the event is over, so
+  // we land on the read-only feed. We wait for the group to load before
+  // deciding so we don't briefly route a locked group to capture.
   const photoboothQ = useHasPhotobooth(id);
+  const isLocked = groupQ.data?.lifecycle === 'locked';
   useEffect(() => {
     if (!id) return;
+    if (groupQ.isLoading || !groupQ.data) return;
+    if (groupQ.data.lifecycle === 'locked') return;
     if (photoboothQ.isLoading || photoboothQ.isFetching) return;
     if (photoboothQ.data !== null) return;
     router.replace({ pathname: '/(app)/groups/[id]/photobooth', params: { id } });
-  }, [id, photoboothQ.isLoading, photoboothQ.isFetching, photoboothQ.data, router]);
+  }, [
+    id,
+    groupQ.isLoading,
+    groupQ.data,
+    photoboothQ.isLoading,
+    photoboothQ.isFetching,
+    photoboothQ.data,
+    router,
+  ]);
 
   const feedQ = useGroupFeed(id);
 
@@ -98,7 +115,13 @@ export default function GroupFeed() {
           data={items}
           keyExtractor={(post) => post.id}
           renderItem={({ item }) => <PostCard post={item} groupId={id} />}
-          ListHeaderComponent={<PushDeniedBanner />}
+          ListHeaderComponent={
+            <>
+              {isLocked ? <LockedFeedNote /> : null}
+              <MissedWhileOfflineBanner groupId={id} />
+              <PushDeniedBanner />
+            </>
+          }
           ListEmptyComponent={!feedQ.isFetching ? <FeedEmptyState /> : null}
           contentContainerStyle={items.length === 0 ? styles.emptyContent : undefined}
           refreshing={feedQ.isRefetching}
@@ -110,7 +133,22 @@ export default function GroupFeed() {
           }
         />
       )}
+
+      <UploadQueueIndicator />
     </SafeAreaView>
+  );
+}
+
+/** Shown atop a locked group's feed — honest read-only state (/docs/02 §6). */
+function LockedFeedNote() {
+  return (
+    <View style={styles.lockedNote}>
+      <Text style={styles.lockedNoteTitle}>Event ended</Text>
+      <Text style={styles.lockedNoteBody}>
+        This group is read-only now — no new prompts or captures. The feed is all yours to look back
+        on.
+      </Text>
+    </View>
   );
 }
 
@@ -141,6 +179,17 @@ const styles = StyleSheet.create({
   infoBtn: { fontSize: 16, fontWeight: '600', color: '#1f6feb' },
   emptyContent: { flexGrow: 1 },
   footerSpinner: { paddingVertical: 24 },
+  lockedNote: {
+    margin: 16,
+    padding: 14,
+    borderRadius: 12,
+    backgroundColor: '#f6f8fa',
+    borderWidth: 1,
+    borderColor: '#d0d7de',
+    gap: 4,
+  },
+  lockedNoteTitle: { fontSize: 15, fontWeight: '700', color: '#1f2328' },
+  lockedNoteBody: { fontSize: 13, color: '#656d76', lineHeight: 19 },
   secondaryBtn: {
     paddingHorizontal: 16,
     paddingVertical: 8,
