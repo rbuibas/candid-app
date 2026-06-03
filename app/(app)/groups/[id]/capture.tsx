@@ -155,7 +155,16 @@ function CaptureLive({
   // detection in logs (search "[Capture]" in Metro / logcat).
   useEffect(() => {
     if (device) {
-      console.log('[Capture] device:', device.name, 'hasFlash:', device.hasFlash, 'hasTorch:', device.hasTorch, 'supportsFocus:', device.supportsFocus);
+      console.log(
+        '[Capture] device:',
+        device.name,
+        'hasFlash:',
+        device.hasFlash,
+        'hasTorch:',
+        device.hasTorch,
+        'supportsFocus:',
+        device.supportsFocus,
+      );
     }
   }, [device]);
   // Explicitly choose the sharpest format for this prompt's media type instead
@@ -180,6 +189,10 @@ function CaptureLive({
   // queued-while-offline, group locked mid-capture (409), or window-closed (410).
   const [terminal, setTerminal] = useState<Terminal | null>(null);
   const [isRecording, setIsRecording] = useState(false);
+  // Enhanced-capture (HDR) toggle. Default on for sharpest stills; the user can
+  // flip it off to get flash + tap-to-focus instead (they're mutually exclusive
+  // with the vendor extension — see the coordination block below).
+  const [hdrEnabled, setHdrEnabled] = useState(true);
   const [stage, setStage] = useState<'idle' | 'capturing' | 'minting' | 'uploading' | 'confirming'>(
     'idle',
   );
@@ -187,6 +200,23 @@ function CaptureLive({
   // the fade animation. Cleared automatically once the indicator fades.
   const [focusPoint, setFocusPoint] = useState<FocusPoint | null>(null);
   const focusSeq = useRef(0);
+
+  // --- Vendor-extension vs flash/focus coordination (issue #9) ---------------
+  // HDR and low-light boost are CameraX *vendor extensions*. When either is
+  // active, vision-camera rebinds the session through the extension, and the
+  // bound camera reports NO flash unit and NO focus-metering support — so
+  // takePhoto({ flash: 'auto' }) throws FlashUnavailableError ("does not have a
+  // flash unit") and cam.focus() throws FocusNotSupportedError. The two
+  // extensions also can't bind together (vision-camera throws
+  // LowLightBoostNotSupportedWithHdr at configure time). So we treat HDR as the
+  // user-toggleable enhancement (default on), low-light boost as the fallback
+  // enhancement only when HDR isn't active, and flash + tap-to-focus as only
+  // available in the plain path where no extension is bound.
+  const hdrSupported = mode === 'photo' && (format?.supportsPhotoHdr ?? false);
+  const photoHdrActive = hdrSupported && hdrEnabled;
+  const lowLightActive = hdrEnabled && !photoHdrActive && (device?.supportsLowLightBoost ?? false);
+  const extensionActive = photoHdrActive || lowLightActive;
+  const focusEnabled = (device?.supportsFocus ?? false) && !extensionActive;
 
   // Move the already-captured file into the durable queue and record its
   // metadata so it can flush on reconnect. Returns false if we couldn't even
@@ -236,8 +266,20 @@ function CaptureLive({
         if (mode === 'photo') {
           const cam = cameraRef.current;
           if (!cam) throw new Error('Camera not ready');
-          const flashMode = device?.hasFlash ? 'auto' : 'off';
-          console.log('[Capture] takePhoto flash:', flashMode, '(device.hasFlash:', device?.hasFlash, ')');
+          // Flash only fires in the plain path. Any active vendor extension
+          // (HDR / low-light) disables the flash unit on the bound camera, so
+          // passing anything but 'off' there throws ("does not have a flash
+          // unit") even on devices whose physical sensor has a flash (#9).
+          const flashMode = device?.hasFlash && !extensionActive ? 'auto' : 'off';
+          console.log(
+            '[Capture] takePhoto flash:',
+            flashMode,
+            '(hasFlash:',
+            device?.hasFlash,
+            'extensionActive:',
+            extensionActive,
+            ')',
+          );
           const photo: PhotoFile = await cam.takePhoto({
             // Flash 'auto' when the device has a flash unit (no toggle in the
             // UI, and the app often shoots in low light), else 'off' — passing
@@ -251,9 +293,11 @@ function CaptureLive({
             flash: flashMode,
             enableShutterSound: false,
           });
+          console.log('[Capture] takePhoto OK → path:', photo.path);
           fileRef.current = { uri: photo.path };
         } else {
           const video = await recordVideo(cameraRef, maxVideoSeconds, setIsRecording);
+          console.log('[Capture] recordVideo OK → path:', video.path, 'dur:', video.duration);
           fileRef.current = { uri: video.path, durationSeconds: Math.round(video.duration) };
         }
         capturedAtRef.current = new Date().toISOString();
@@ -262,6 +306,7 @@ function CaptureLive({
       // 2. Mint upload URL (skip if a prior attempt already minted one).
       if (!mintRef.current) {
         setStage('minting');
+        console.log('[Capture] minting upload URL…');
         mintRef.current = await createUploadUrl({
           group_id: groupId,
           kind: 'prompt',
@@ -269,13 +314,16 @@ function CaptureLive({
           extension,
           prompt_id: promptId,
         });
+        console.log('[Capture] mint OK → post_id:', mintRef.current.post_id);
       }
       const mint = mintRef.current;
       const file = fileRef.current;
 
       // 3. PUT bytes (safe to retry — R2 PUT is idempotent on the same key).
       setStage('uploading');
+      console.log('[Capture] uploading bytes →', file.uri);
       await uploadBytes(mint.upload_url, file.uri, contentTypeFor(mediaType));
+      console.log('[Capture] upload OK');
 
       // 4. Best-effort geocode. Never blocks (3s timeout, swallows everything).
       const location = await geocodeOnce(3000);
@@ -295,6 +343,7 @@ function CaptureLive({
         accuracy: location?.accuracy ?? undefined,
         prompt_id: promptId,
       });
+      console.log('[Capture] confirm OK → post:', post.id);
 
       // Clear retry state on success.
       mintRef.current = null;
@@ -320,6 +369,25 @@ function CaptureLive({
     },
     onError: (err) => {
       setStage('idle');
+      // TEMP TRACE: surface the real error + its classification so we can see
+      // which pipeline step failed and why (remove once #9 is diagnosed).
+      console.log(
+        '[Capture] FAILED →',
+        err instanceof ApiError
+          ? `ApiError ${err.status}: ${err.body || err.message}`
+          : err instanceof Error
+            ? `${err.name}: ${err.message}`
+            : String(err),
+        '| class:',
+        isGroupLockedError(err)
+          ? 'locked'
+          : isMissedError(err)
+            ? 'missed'
+            : isRetryable(err)
+              ? 'retryable→offline'
+              : 'hard-error',
+      );
+      if (err instanceof Error && err.stack) console.log('[Capture] stack:', err.stack);
       // Capture raced past the group's end_date lock — the event is over.
       if (isGroupLockedError(err)) {
         setTerminal('locked');
@@ -350,17 +418,20 @@ function CaptureLive({
   }, [captureMutation]);
 
   // Tap-to-focus: hand the tapped view coordinate to the camera and pop the
-  // reticle. Guarded on device.supportsFocus (some front/budget sensors are
-  // fixed-focus). focus() can reject if a capture is in flight — ignore it.
+  // reticle. Guarded on focusEnabled — false on fixed-focus sensors AND while a
+  // vendor extension is bound (HDR / low-light), which disables focus metering.
   const focusAt = useCallback(
     (x: number, y: number) => {
       const cam = cameraRef.current;
-      if (!cam || !device?.supportsFocus) return;
+      if (!cam || !focusEnabled) return;
       focusSeq.current += 1;
       setFocusPoint({ x, y, id: focusSeq.current });
-      cam.focus({ x, y }).catch(() => {});
+      // focus() can legitimately reject mid-capture; log instead of swallowing
+      // so a genuinely-unsupported focus (e.g. under a vendor extension) is
+      // visible rather than silently dead (#9).
+      cam.focus({ x, y }).catch((e) => console.log('[Capture] focus failed:', e));
     },
-    [device],
+    [focusEnabled],
   );
 
   if (!device) {
@@ -387,8 +458,8 @@ function CaptureLive({
         // for higher-accuracy edge detection + AF/AE. If this feels sluggish on
         // the test Android device, fall back to 'balanced'.
         photoQualityBalance="quality"
-        photoHdr={mode === 'photo' && (format?.supportsPhotoHdr ?? false)}
-        lowLightBoost={device.supportsLowLightBoost}
+        photoHdr={photoHdrActive}
+        lowLightBoost={lowLightActive}
         videoStabilizationMode={stabilizationMode}
         // Phase-6 compression: cap the encoder bitrate for video prompts so R2
         // objects stay small (see VIDEO_BITRATE_MBPS). No-op for photo mode.
@@ -398,7 +469,7 @@ function CaptureLive({
       {/* Tap-to-focus layer: sits beneath the box-none overlay so the shutter
           and cancel controls keep their own taps, while taps on the bare
           preview fall through to here. */}
-      {device.supportsFocus ? (
+      {focusEnabled ? (
         <View
           style={StyleSheet.absoluteFill}
           onStartShouldSetResponder={() => true}
@@ -411,10 +482,28 @@ function CaptureLive({
           <Pressable onPress={onBack} style={styles.closeBtn} hitSlop={16}>
             <Text style={styles.closeBtnText}>Cancel</Text>
           </Pressable>
-          <View style={styles.modeChip}>
-            <Text style={styles.modeChipText}>
-              {mode === 'video' ? `Video · up to ${maxVideoSeconds}s` : 'Photo'}
-            </Text>
+          <View style={styles.topRight}>
+            {/* HDR toggle: only when the device/format actually supports it.
+                Off re-enables flash + tap-to-focus (mutually exclusive with the
+                HDR vendor extension). Locked while a capture is in flight to
+                avoid reconfiguring the session mid-shot. */}
+            {hdrSupported ? (
+              <Pressable
+                onPress={() => setHdrEnabled((v) => !v)}
+                disabled={isPending}
+                hitSlop={12}
+                style={[styles.hdrChip, !hdrEnabled && styles.hdrChipOff]}
+              >
+                <Text style={[styles.hdrChipText, !hdrEnabled && styles.hdrChipTextOff]}>
+                  {hdrEnabled ? 'HDR' : 'HDR off'}
+                </Text>
+              </Pressable>
+            ) : null}
+            <View style={styles.modeChip}>
+              <Text style={styles.modeChipText}>
+                {mode === 'video' ? `Video · up to ${maxVideoSeconds}s` : 'Photo'}
+              </Text>
+            </View>
           </View>
         </View>
 
@@ -662,6 +751,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
   },
   closeBtnText: { color: '#fff', fontWeight: '600', fontSize: 14 },
+  topRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   modeChip: {
     paddingVertical: 6,
     paddingHorizontal: 12,
@@ -669,6 +759,15 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   modeChipText: { color: '#fff', fontWeight: '600', fontSize: 13 },
+  hdrChip: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    backgroundColor: '#f5c518',
+    borderRadius: 12,
+  },
+  hdrChipOff: { backgroundColor: 'rgba(0,0,0,0.4)' },
+  hdrChipText: { color: '#1f2328', fontWeight: '700', fontSize: 13 },
+  hdrChipTextOff: { color: '#fff', fontWeight: '600' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   stagePill: {
     paddingVertical: 8,

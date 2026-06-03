@@ -60,6 +60,14 @@ function PhotoBoothLive({ groupId, onBack }: { groupId: string; onBack: () => vo
   // booth is always photo mode (front camera, no tap-to-focus: it auto-fires on
   // a countdown and the subject is at a fixed arm's length).
   const format = useBestFormat(device, 'photo');
+  // HDR and low-light boost are CameraX vendor extensions and cannot bind
+  // together — passing both throws LowLightBoostNotSupportedWithHdr at session
+  // configure time, so the booth camera never starts. Prefer HDR; fall back to
+  // low-light boost only when HDR isn't available. (The booth is flash-off and
+  // has no tap-to-focus, so the extension's flash/focus limits don't matter
+  // here — only the simultaneous-bind crash does.)
+  const photoHdrActive = format?.supportsPhotoHdr ?? false;
+  const lowLightActive = !photoHdrActive && (device?.supportsLowLightBoost ?? false);
   const cameraRef = useRef<Camera>(null);
   const composerRef = useRef<StripComposerRef>(null);
   const qc = useQueryClient();
@@ -195,8 +203,8 @@ function PhotoBoothLive({ groupId, onBack }: { groupId: string; onBack: () => vo
         // frames absorbs the slightly slower shutter, so the booth still feels
         // instant. HDR + low-light boost where the front sensor supports them.
         photoQualityBalance="quality"
-        photoHdr={format?.supportsPhotoHdr ?? false}
-        lowLightBoost={device.supportsLowLightBoost}
+        photoHdr={photoHdrActive}
+        lowLightBoost={lowLightActive}
       />
 
       {/* Off-screen strip composer — only mounted once we have all 3 frames. */}
