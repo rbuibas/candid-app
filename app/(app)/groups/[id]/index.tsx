@@ -79,7 +79,11 @@ export default function GroupFeed() {
           headerTitle: () => <FeedHeaderTitle group={groupQ.data} fallback="Group" />,
           headerRight: () => (
             <Pressable
-              onPress={openInfo}
+              // onPressIn, not onPress: custom native-stack header buttons don't
+              // fire onPress on Android under Expo SDK 52 / react-native-screens
+              // v4 — the button shows press feedback but the handler never runs
+              // (expo/expo#33093, react-navigation#12274). onPressIn does fire.
+              onPressIn={openInfo}
               hitSlop={12}
               style={({ pressed }) => pressed && styles.pressed}
             >
