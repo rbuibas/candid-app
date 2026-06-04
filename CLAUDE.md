@@ -45,6 +45,7 @@ Python 3.12 + FastAPI + uv · Supabase (Postgres, magic-link auth, RLS) · Cloud
 - **Workers:** generator (hourly), dispatcher (per-minute), expirer (per-minute) as Render cron entrypoints under `src/app/workers/`.
 - **Mobile data:** server state via React Query; local/UI/offline-queue state via Zustand. No secrets in the bundle — only the Supabase anon key and public config.
 - **Timezones:** prompt windows are per-user local; the client keeps `profiles.timezone` current.
+- **Post-event download:** save posts to the **camera roll** (write-only media-library permission, never read) for single posts (`PostViewerModal`) and bulk (`src/features/download/bulkDownload.ts` — sequential, abortable, re-mints expired signed URLs per page via `GET /posts/{id}`). "Downloaded" state is **local-only** (persisted Zustand keyed by `post_id`), never a backend column. The retention banner is a nudge off the server-computed `retention_purge_at`; there is no purge job.
 
 ## Testing strategy
 - Backend: pytest. Prioritize the prompt state machine (on-time/late/missed boundaries around `dispatched_at`), idempotent `confirm`, RLS policy behavior, and the generator's window/gap/timezone logic — that's where correctness lives.

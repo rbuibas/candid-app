@@ -20,6 +20,13 @@ export type GroupWithLifecycle = {
   created_at: string;
   updated_at: string;
   lifecycle: Lifecycle;
+  /**
+   * ISO-8601 timestamp — when this group's media becomes eligible for purge
+   * (`end_date` + RETENTION_DAYS, computed server-side; see candid-api
+   * config.py). Drives the pre-expiry "save your media" nudge only; no purge
+   * job exists yet.
+   */
+  retention_purge_at: string;
 };
 
 export type GroupSettingsInput = Partial<

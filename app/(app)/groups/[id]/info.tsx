@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -17,6 +18,7 @@ import { deleteGroup, getGroup, type GroupWithLifecycle } from '@/api/groups';
 import { listMembers, type GroupMember } from '@/api/members';
 import { triggerDevPrompt } from '@/api/prompts';
 import { useSession } from '@/auth/SessionProvider';
+import { BulkDownloadSheet } from '@/features/download/BulkDownloadSheet';
 import { LifecycleBadge } from '@/features/groups/components/LifecycleBadge';
 import { MemberAvatar } from '@/features/groups/components/MemberAvatar';
 import { formatDateRange, formatJoinedDate } from '@/features/groups/lifecycle';
@@ -34,6 +36,7 @@ export default function GroupInfo() {
   const router = useRouter();
   const qc = useQueryClient();
   const { session } = useSession();
+  const [bulkOpen, setBulkOpen] = useState(false);
 
   const groupQ = useQuery({
     queryKey: ['groups', id],
@@ -202,6 +205,31 @@ export default function GroupInfo() {
               )}
             </View>
 
+            <View style={styles.captureBlock}>
+              <Text style={styles.sectionLabel}>Save the album</Text>
+              {isLocked ? (
+                <>
+                  <Text style={styles.captureHint}>
+                    Save every photo and video from this group to your camera roll, in the “Candid”
+                    album.
+                  </Text>
+                  <Pressable
+                    onPress={() => setBulkOpen(true)}
+                    style={({ pressed }) => [styles.primaryBtn, pressed && styles.pressed]}
+                  >
+                    <Text style={styles.primaryBtnText}>Save all posts to camera roll</Text>
+                  </Pressable>
+                </>
+              ) : (
+                <>
+                  <View style={[styles.primaryBtn, styles.disabled]}>
+                    <Text style={styles.primaryBtnText}>Save all posts to camera roll</Text>
+                  </View>
+                  <Text style={styles.captureHint}>Available when the event ends.</Text>
+                </>
+              )}
+            </View>
+
             {isLocked ? (
               <View style={styles.captureBlock}>
                 <Text style={styles.sectionLabel}>Event ended</Text>
@@ -345,6 +373,7 @@ export default function GroupInfo() {
           ) : null
         }
       />
+      <BulkDownloadSheet visible={bulkOpen} groupId={id} onClose={() => setBulkOpen(false)} />
     </SafeAreaView>
   );
 }

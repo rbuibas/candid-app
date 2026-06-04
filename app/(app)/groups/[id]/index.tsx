@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -9,9 +9,12 @@ import { type FeedItem } from '@/api/feed';
 import { getGroup, type GroupWithLifecycle } from '@/api/groups';
 import { MissedWhileOfflineBanner } from '@/features/capture/MissedWhileOfflineBanner';
 import { UploadQueueIndicator } from '@/features/capture/UploadQueueIndicator';
+import { BulkDownloadSheet } from '@/features/download/BulkDownloadSheet';
+import { RetentionBanner } from '@/features/download/RetentionBanner';
 import { LifecycleBadge } from '@/features/groups/components/LifecycleBadge';
 import { FeedEmptyState } from '@/features/feed/FeedEmptyState';
 import { PostCard } from '@/features/feed/PostCard';
+import { PostViewerModal } from '@/features/feed/PostViewerModal';
 import { useGroupFeed } from '@/features/feed/useGroupFeed';
 import { useHasPhotobooth } from '@/features/prompt/useHasPhotobooth';
 import { PushDeniedBanner } from '@/notifications/PushDeniedBanner';
@@ -59,6 +62,11 @@ export default function GroupFeed() {
   ]);
 
   const feedQ = useGroupFeed(id);
+
+  // Single-post viewer modal (tap a post) and the bulk-download sheet (banner
+  // CTA). Both are post-event download surfaces; see src/features/download.
+  const [viewerPost, setViewerPost] = useState<FeedItem | null>(null);
+  const [bulkOpen, setBulkOpen] = useState(false);
 
   const openInfo = useCallback(() => {
     router.push({ pathname: '/(app)/groups/[id]/info', params: { id } });
@@ -118,10 +126,11 @@ export default function GroupFeed() {
         <FlatList<FeedItem>
           data={items}
           keyExtractor={(post) => post.id}
-          renderItem={({ item }) => <PostCard post={item} groupId={id} />}
+          renderItem={({ item }) => <PostCard post={item} groupId={id} onPress={setViewerPost} />}
           ListHeaderComponent={
             <>
               {isLocked ? <LockedFeedNote /> : null}
+              <RetentionBanner group={groupQ.data} onSaveAll={() => setBulkOpen(true)} />
               <MissedWhileOfflineBanner groupId={id} />
               <PushDeniedBanner />
             </>
@@ -139,6 +148,8 @@ export default function GroupFeed() {
       )}
 
       <UploadQueueIndicator />
+      <PostViewerModal post={viewerPost} onClose={() => setViewerPost(null)} />
+      <BulkDownloadSheet visible={bulkOpen} groupId={id} onClose={() => setBulkOpen(false)} />
     </SafeAreaView>
   );
 }

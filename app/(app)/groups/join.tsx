@@ -46,6 +46,9 @@ export default function JoinGroup() {
           <Text style={styles.help}>
             Enter the 6-character invite code your friend shared with you.
           </Text>
+          <Text style={styles.consent}>
+            Anything you post can be saved to other members&apos; phones.
+          </Text>
 
           <TextInput
             value={code}
@@ -95,6 +98,7 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   content: { padding: 20, gap: 16 },
   help: { fontSize: 14, color: '#656d76' },
+  consent: { fontSize: 13, color: '#8c959f' },
   input: {
     borderWidth: 1,
     borderColor: '#d0d7de',
