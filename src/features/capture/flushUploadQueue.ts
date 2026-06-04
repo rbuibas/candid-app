@@ -25,6 +25,12 @@ import { describeError, isGroupLockedError, isMissedError, isRetryable } from '.
  */
 let isFlushing = false;
 
+/** Remove an item's persisted bytes — the media and, for video, its poster. */
+async function deleteQueuedFiles(item: QueueItem): Promise<void> {
+  await deleteQueuedFile(item.localFilePath);
+  if (item.thumbnailLocalFilePath) await deleteQueuedFile(item.thumbnailLocalFilePath);
+}
+
 function isEligible(item: QueueItem, now: number): boolean {
   if (item.status === 'pending') return true;
   if (item.status === 'failed')
@@ -59,7 +65,7 @@ export async function flushUploadQueue(qc: QueryClient): Promise<void> {
       useUploadQueue.getState().setStatus(item.id, 'uploading');
       try {
         await runUploadPipeline(item);
-        await deleteQueuedFile(item.localFilePath);
+        await deleteQueuedFiles(item);
         useUploadQueue.getState().remove(item.id);
         void qc.invalidateQueries({ queryKey: feedQueryKey(item.groupId) });
         if (item.promptId) {
@@ -67,19 +73,19 @@ export async function flushUploadQueue(qc: QueryClient): Promise<void> {
         }
       } catch (err) {
         if (isMissedError(err)) {
-          await deleteQueuedFile(item.localFilePath);
+          await deleteQueuedFiles(item);
           useUploadQueue.getState().markMissed(item);
           if (item.promptId) {
             void qc.invalidateQueries({ queryKey: ['prompts', item.promptId] });
           }
         } else if (isGroupLockedError(err)) {
-          await deleteQueuedFile(item.localFilePath);
+          await deleteQueuedFiles(item);
           useUploadQueue.getState().remove(item.id);
         } else if (isRetryable(err)) {
           useUploadQueue.getState().bumpAttempt(item.id, describeError(err));
         } else {
           // Non-retryable server rejection — drop it rather than loop forever.
-          await deleteQueuedFile(item.localFilePath);
+          await deleteQueuedFiles(item);
           useUploadQueue.getState().remove(item.id);
         }
       }

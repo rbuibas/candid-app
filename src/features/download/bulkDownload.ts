@@ -42,7 +42,7 @@ async function ensureTempDir(): Promise<void> {
 /**
  * Downloads a remote URL to a fresh temp file and returns its local URI. The
  * caller owns the file and must delete it (see `releaseTempFile`). Shared with
- * the single-photo download path in PostViewerModal.
+ * the single-photo download path in PostViewer.
  */
 export async function downloadToTempFile(
   url: string,

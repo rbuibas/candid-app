@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { Animated, Modal, PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { type FeedItem } from '@/api/feed';
@@ -12,7 +12,12 @@ import { saveAssetToCameraRoll } from '@/features/download/save';
 import { VideoPlayer } from './VideoPlayer';
 
 /**
- * Full-size post viewer, opened on tap of a feed post (not a route — a modal).
+ * Full-size post viewer body. Rendered by the `groups/[id]/viewer` route, which
+ * presents it as a transparent native modal — NOT a React Native `<Modal>`.
+ * expo-video's `<VideoView>` is a windowed native surface that renders black
+ * inside an RN `<Modal>`, so inline video playback only works when the viewer
+ * lives on a real native-stack screen.
+ *
  * Pan-to-dismiss + close button + a download button that saves the single post
  * to the camera roll. Works for photo, video (inline playback), and strip
  * (saved as the single composite image — non-negotiable #6).
@@ -23,21 +28,7 @@ import { VideoPlayer } from './VideoPlayer';
  */
 const DISMISS_THRESHOLD = 120;
 
-export function PostViewerModal({ post, onClose }: { post: FeedItem | null; onClose: () => void }) {
-  return (
-    <Modal
-      visible={!!post}
-      transparent
-      animationType="fade"
-      onRequestClose={onClose}
-      statusBarTranslucent
-    >
-      {post ? <ViewerBody post={post} onClose={onClose} /> : null}
-    </Modal>
-  );
-}
-
-function ViewerBody({ post, onClose }: { post: FeedItem; onClose: () => void }) {
+export function PostViewer({ post, onClose }: { post: FeedItem; onClose: () => void }) {
   const pan = useRef(new Animated.Value(0)).current;
   const { status, request, openSettings } = useMediaPermission();
   const alreadySaved = useDownloadStore((s) => s.has(post.id));
