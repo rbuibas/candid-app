@@ -12,14 +12,42 @@ import type { PostMediaType } from '@/api/posts';
 export const ALBUM_NAME = 'Candid';
 
 /**
+ * The Candid album for the current app session, resolved once and reused.
+ *
+ * iOS prompts the user to confirm *every* library modification under write-only
+ * ("Add Only") access. Creating the album counts as one such modification, so
+ * creating it per-save (as we did before) fired one OS prompt per photo — and
+ * quietly made a duplicate "Candid" album each time. We instead create the album
+ * once on the first save and cache the reference, so every later save just adds
+ * to it: a single album, and at most one prompt for the whole batch.
+ *
+ * We deliberately do NOT call the read-API `getAlbumAsync` (CLAUDE.md
+ * non-negotiable #2: never enumerate the user's library). The trade-off is that
+ * a fresh "Candid" album may be created once per app launch; within a session
+ * — and so within any one bulk download — there is only ever one.
+ */
+let candidAlbum: MediaLibrary.Album | null = null;
+
+async function fileIntoCandidAlbum(asset: MediaLibrary.Asset): Promise<void> {
+  if (candidAlbum) {
+    await MediaLibrary.addAssetsToAlbumAsync([asset], candidAlbum, false);
+    return;
+  }
+  // First save of the session: create the album from this asset and cache it.
+  // If creation fails, leave the cache null so the next save retries — the asset
+  // is already safely in the roll regardless.
+  candidAlbum = await MediaLibrary.createAlbumAsync(ALBUM_NAME, asset, false);
+}
+
+/**
  * Saves a single already-downloaded local file into the camera roll, filed
- * under the "Candid" album. Created on first save.
+ * under the "Candid" album.
  *
  * CLAUDE.md non-negotiable #1: media always lands in the **camera roll**, never
  * an app-private directory. `createAssetAsync` writes to the shared photo
- * library; the album step only *organises* it. So even if the album add fails
- * (e.g. iOS "Add Only" forbids reading existing albums), the asset is already
- * safely in the roll — we swallow the album error rather than failing the save.
+ * library; the album step only *organises* it. So even if the album add fails,
+ * the asset is already safely in the roll — we swallow the album error rather
+ * than failing the save.
  *
  * `mediaType` is accepted for clarity/symmetry; expo-media-library infers the
  * actual asset type from the file. A `strip` is a composite JPEG — treated as a
@@ -33,25 +61,9 @@ export async function saveAssetToCameraRoll(
   // 1. Land it in the camera roll. This is the part that must succeed.
   const asset = await MediaLibrary.createAssetAsync(localUri);
 
-  // 2. Best-effort: file it under the Candid album.
-  //
-  // Under write-only ("Add Only") access on iOS we cannot enumerate albums, so
-  // `getAlbumAsync` may throw or return null. We try to find the album; if we
-  // can't, we create it. Either way, a failure here does NOT fail the save —
-  // the asset is already in the roll.
+  // 2. Best-effort: file it under the (session-cached) Candid album.
   try {
-    let album: MediaLibrary.Album | null = null;
-    try {
-      album = await MediaLibrary.getAlbumAsync(ALBUM_NAME);
-    } catch {
-      album = null; // read not permitted (Add Only) — fall through to create.
-    }
-
-    if (album) {
-      await MediaLibrary.addAssetsToAlbumAsync([asset], album, false);
-    } else {
-      await MediaLibrary.createAlbumAsync(ALBUM_NAME, asset, false);
-    }
+    await fileIntoCandidAlbum(asset);
   } catch {
     // Album organisation failed; the asset is still saved to the roll. Honest
     // outcome — we don't pretend the album exists, but we don't lose the media.
