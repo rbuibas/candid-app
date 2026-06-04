@@ -1,13 +1,15 @@
 import { forwardRef, useImperativeHandle, useRef } from 'react';
-import { Image, StyleSheet, View } from 'react-native';
+import { Image, StyleSheet, Text, View } from 'react-native';
 import { captureRef } from 'react-native-view-shot';
 
 /**
  * Off-screen JPEG composer for the photo-booth strip. Receives the three
- * frame URIs as a prop, mounts them in a hidden View styled as a classic
- * photo-booth strip (cream background, side/top/bottom padding, gutters
- * between frames), and exposes an imperative `compose()` that waits for all
- * three images to load then returns the captured strip's tmpfile URI.
+ * frame URIs plus the group name and event-date label as props, mounts them
+ * in a hidden View styled as a classic 35mm film strip (black body, white
+ * sprocket holes down both edges, three frames stacked vertically, and the
+ * group name + dates printed at the foot), and exposes an imperative
+ * `compose()` that waits for all three images to load then returns the
+ * captured strip's tmpfile URI.
  *
  * Why off-screen instead of `<Modal>` or a separate screen: the strip should
  * be invisible to the user (the photo-booth UX is "3 captures → upload",
@@ -17,18 +19,28 @@ import { captureRef } from 'react-native-view-shot';
  *
  * Layout (all values in px at 1× — captureRef snaps the logical pixel size):
  *   - Strip width: 1080
- *   - Side padding: 36 each side  → frame width: 1008
- *   - Frame: square 1008×1008, resizeMode cover
- *   - Top / bottom padding: 60
- *   - Gutter between frames: 24
- *   - Total height: 60 + 1008 + 24 + 1008 + 24 + 1008 + 60 = 3192
+ *   - Sprocket column: 104 each side  → frame width: 872
+ *   - Frame: square 872×872, resizeMode cover, 3 frames
+ *   - Top border: 48 · gutter between frames: 18
+ *   - Caption block: 44 gap + 150 tall (group name + dates)
+ *   - Total height: 48 + 3·(872+18) + 44 + 150 = 2912
  */
 const STRIP_WIDTH = 1080;
-const SIDE_PAD = 36;
-const V_PAD = 60;
-const GUTTER = 24;
-const FRAME_SIZE = STRIP_WIDTH - SIDE_PAD * 2; // 1008
-const STRIP_HEIGHT = V_PAD * 2 + FRAME_SIZE * 3 + GUTTER * 2; // 3192
+const SPROCKET_COL = 104;
+const TOP_BORDER = 48;
+const FRAME_GUTTER = 18;
+const FRAME_W = STRIP_WIDTH - SPROCKET_COL * 2; // 872
+const FRAME_H = FRAME_W; // square
+const CAPTION_GAP = 44;
+const CAPTION_BLOCK = 150;
+const STRIP_HEIGHT = TOP_BORDER + (FRAME_H + FRAME_GUTTER) * 3 + CAPTION_GAP + CAPTION_BLOCK; // 2912
+
+// Sprocket holes — a fixed run of rounded white rectangles down each edge,
+// distributed with space-between so they fill the full strip height.
+const HOLE_W = 44;
+const HOLE_H = 64;
+const HOLE_COUNT = 26;
+const HOLES = Array.from({ length: HOLE_COUNT }, (_, i) => i);
 
 export type StripComposerRef = {
   compose: () => Promise<string>;
@@ -36,10 +48,12 @@ export type StripComposerRef = {
 
 type Props = {
   frames: string[]; // three local file URIs from vision-camera
+  groupName: string;
+  dateLabel: string;
 };
 
 export const StripComposer = forwardRef<StripComposerRef, Props>(function StripComposer(
-  { frames },
+  { frames, groupName, dateLabel },
   ref,
 ) {
   const viewRef = useRef<View>(null);
@@ -79,6 +93,19 @@ export const StripComposer = forwardRef<StripComposerRef, Props>(function StripC
 
   return (
     <View ref={viewRef} collapsable={false} style={styles.strip}>
+      {/* Sprocket-hole columns — absolute so they span the full strip height,
+          behind the frames which sit inside the horizontal padding. */}
+      <View style={[styles.holeColumn, styles.holeColumnLeft]} pointerEvents="none">
+        {HOLES.map((i) => (
+          <View key={`l${i}`} style={styles.hole} />
+        ))}
+      </View>
+      <View style={[styles.holeColumn, styles.holeColumnRight]} pointerEvents="none">
+        {HOLES.map((i) => (
+          <View key={`r${i}`} style={styles.hole} />
+        ))}
+      </View>
+
       {frames.map((uri, i) => (
         <Image
           // The frame index is the stable identity here — there are exactly
@@ -91,6 +118,17 @@ export const StripComposer = forwardRef<StripComposerRef, Props>(function StripC
           resizeMode="cover"
         />
       ))}
+
+      <View style={styles.caption}>
+        <Text style={styles.captionName} numberOfLines={1}>
+          {groupName}
+        </Text>
+        {dateLabel ? (
+          <Text style={styles.captionDate} numberOfLines={1}>
+            {dateLabel}
+          </Text>
+        ) : null}
+      </View>
     </View>
   );
 });
@@ -102,15 +140,55 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: -100000,
     top: -100000,
-    // Warm white/cream — classic photo-strip paper colour.
-    backgroundColor: '#f5f0e8',
+    // Near-black film body.
+    backgroundColor: '#0d0d0d',
     flexDirection: 'column',
-    paddingHorizontal: SIDE_PAD,
-    paddingVertical: V_PAD,
-    gap: GUTTER,
+    alignItems: 'center',
+    paddingHorizontal: SPROCKET_COL,
+    paddingTop: TOP_BORDER,
+  },
+  holeColumn: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    width: SPROCKET_COL,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 28,
+  },
+  holeColumnLeft: { left: 0 },
+  holeColumnRight: { right: 0 },
+  hole: {
+    width: HOLE_W,
+    height: HOLE_H,
+    borderRadius: 10,
+    backgroundColor: '#f5f0e8',
   },
   frame: {
-    width: FRAME_SIZE,
-    height: FRAME_SIZE,
+    width: FRAME_W,
+    height: FRAME_H,
+    marginBottom: FRAME_GUTTER,
+    borderRadius: 6,
+  },
+  caption: {
+    marginTop: CAPTION_GAP - FRAME_GUTTER,
+    height: CAPTION_BLOCK,
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+  },
+  captionName: {
+    color: '#f5f0e8',
+    fontSize: 48,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+    textAlign: 'center',
+  },
+  captionDate: {
+    marginTop: 16,
+    color: '#cfc9bd',
+    fontSize: 36,
+    fontWeight: '600',
+    letterSpacing: 1,
+    textAlign: 'center',
   },
 });

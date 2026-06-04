@@ -1,4 +1,4 @@
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -6,10 +6,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Camera, useCameraDevice, type PhotoFile } from 'react-native-vision-camera';
 
 import { ApiError } from '@/api/client';
+import { getGroup } from '@/api/groups';
 import { confirmPost, createUploadUrl, type Post, type UploadUrlResponse } from '@/api/posts';
 import { createAvatarUploadUrl, patchAvatar, type AvatarUploadUrlResponse } from '@/api/profile';
 import { Countdown } from '@/features/capture/components/Countdown';
 import { StripComposer, type StripComposerRef } from '@/features/capture/StripComposer';
+import { formatDateRange } from '@/features/groups/lifecycle';
 import { useBestFormat } from '@/features/capture/useBestFormat';
 import { contentTypeFor, uploadBytes } from '@/features/capture/uploadBytes';
 import { useCameraPermissions } from '@/features/capture/useCameraPermissions';
@@ -72,6 +74,19 @@ function PhotoBoothLive({ groupId, onBack }: { groupId: string; onBack: () => vo
   const composerRef = useRef<StripComposerRef>(null);
   const qc = useQueryClient();
   const router = useRouter();
+
+  // Group name + event dates are printed at the foot of the film strip. The
+  // feed already caches this query under the same key, so it's typically warm
+  // by the time the three frames finish (~9s of countdowns).
+  const groupQ = useQuery({
+    queryKey: ['groups', groupId],
+    queryFn: () => getGroup(groupId),
+    enabled: !!groupId,
+  });
+  const groupName = groupQ.data?.name ?? '';
+  const dateLabel = groupQ.data
+    ? formatDateRange(groupQ.data.start_date, groupQ.data.end_date)
+    : '';
 
   // Retry state — everything that survives a failed-and-retried run.
   const framesRef = useRef<string[]>([]);
@@ -208,7 +223,14 @@ function PhotoBoothLive({ groupId, onBack }: { groupId: string; onBack: () => vo
       />
 
       {/* Off-screen strip composer — only mounted once we have all 3 frames. */}
-      {frames.length === FRAME_COUNT ? <StripComposer ref={composerRef} frames={frames} /> : null}
+      {frames.length === FRAME_COUNT ? (
+        <StripComposer
+          ref={composerRef}
+          frames={frames}
+          groupName={groupName}
+          dateLabel={dateLabel}
+        />
+      ) : null}
 
       <SafeAreaView style={styles.overlay} pointerEvents="box-none">
         <View style={styles.topBar}>
