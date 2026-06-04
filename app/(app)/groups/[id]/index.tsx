@@ -14,8 +14,8 @@ import { RetentionBanner } from '@/features/download/RetentionBanner';
 import { LifecycleBadge } from '@/features/groups/components/LifecycleBadge';
 import { FeedEmptyState } from '@/features/feed/FeedEmptyState';
 import { PostCard } from '@/features/feed/PostCard';
-import { PostViewerModal } from '@/features/feed/PostViewerModal';
 import { useGroupFeed } from '@/features/feed/useGroupFeed';
+import { useViewerStore } from '@/features/feed/viewerStore';
 import { useHasPhotobooth } from '@/features/prompt/useHasPhotobooth';
 import { PushDeniedBanner } from '@/notifications/PushDeniedBanner';
 
@@ -63,14 +63,23 @@ export default function GroupFeed() {
 
   const feedQ = useGroupFeed(id);
 
-  // Single-post viewer modal (tap a post) and the bulk-download sheet (banner
-  // CTA). Both are post-event download surfaces; see src/features/download.
-  const [viewerPost, setViewerPost] = useState<FeedItem | null>(null);
+  // Single-post viewer (tap a post) and the bulk-download sheet (banner CTA).
+  // Both are post-event download surfaces; see src/features/download. The viewer
+  // is a native route (not an RN <Modal>) so expo-video can render — the tapped
+  // post is handed off via useViewerStore.
   const [bulkOpen, setBulkOpen] = useState(false);
 
   const openInfo = useCallback(() => {
     router.push({ pathname: '/(app)/groups/[id]/info', params: { id } });
   }, [router, id]);
+
+  const openViewer = useCallback(
+    (post: FeedItem) => {
+      useViewerStore.getState().setPost(post);
+      router.push({ pathname: '/(app)/groups/[id]/viewer', params: { id } });
+    },
+    [router, id],
+  );
 
   const items: FeedItem[] = feedQ.data?.pages.flatMap((page) => page.items) ?? [];
 
@@ -126,7 +135,7 @@ export default function GroupFeed() {
         <FlatList<FeedItem>
           data={items}
           keyExtractor={(post) => post.id}
-          renderItem={({ item }) => <PostCard post={item} groupId={id} onPress={setViewerPost} />}
+          renderItem={({ item }) => <PostCard post={item} groupId={id} onPress={openViewer} />}
           ListHeaderComponent={
             <>
               {isLocked ? <LockedFeedNote /> : null}
@@ -148,7 +157,6 @@ export default function GroupFeed() {
       )}
 
       <UploadQueueIndicator />
-      <PostViewerModal post={viewerPost} onClose={() => setViewerPost(null)} />
       <BulkDownloadSheet visible={bulkOpen} groupId={id} onClose={() => setBulkOpen(false)} />
     </SafeAreaView>
   );

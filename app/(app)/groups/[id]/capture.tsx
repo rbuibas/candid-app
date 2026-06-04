@@ -31,6 +31,7 @@ import {
 import { geocodeOnce } from '@/features/capture/useGeocode';
 import { contentTypeFor, uploadBytes } from '@/features/capture/uploadBytes';
 import { useCameraPermissions } from '@/features/capture/useCameraPermissions';
+import { generateVideoThumbnail } from '@/features/capture/videoThumbnail';
 import { isGroupLockedError, isMissedError, isRetryable } from '@/features/capture/uploadErrors';
 import { useActivePrompt } from '@/features/prompt/useActivePrompt';
 import { makeQueueId, useUploadQueue } from '@/stores/uploadQueue';
@@ -164,6 +165,9 @@ function CaptureLive({
   // Holds the file URI between PUT failures so we don't re-record / re-snap
   // a frame the user already captured.
   const fileRef = useRef<{ uri: string; durationSeconds?: number } | null>(null);
+  // Video only: the generated poster frame, held across retries so we don't
+  // regenerate it each attempt. Stays null for photos and when generation fails.
+  const thumbRef = useRef<string | null>(null);
   // The original capture moment, set once when the media is taken. Used for
   // confirm's `captured_at` AND for the offline queue item — so a post that
   // flushes minutes later still carries when it was actually shot (display
@@ -207,11 +211,22 @@ function CaptureLive({
     } catch {
       return false;
     }
+    // Persist the poster frame too (video only), so the flusher can upload it
+    // alongside the media. Best-effort: a missing poster never blocks the queue.
+    let thumbnailLocalFilePath: string | undefined;
+    if (mediaType === 'video' && thumbRef.current) {
+      try {
+        thumbnailLocalFilePath = await persistCaptureFile(thumbRef.current, id, 'thumb.jpg');
+      } catch {
+        thumbnailLocalFilePath = undefined;
+      }
+    }
     // Geocode is best-effort and works offline via GPS; never blocks (3s cap).
     const location = await geocodeOnce(3000);
     enqueue({
       id,
       localFilePath,
+      thumbnailLocalFilePath,
       groupId,
       kind: 'prompt',
       mediaType,
@@ -224,6 +239,7 @@ function CaptureLive({
     });
     // A fresh capture should start clean — the queue owns these bytes now.
     fileRef.current = null;
+    thumbRef.current = null;
     mintRef.current = null;
     capturedAtRef.current = null;
     return true;
@@ -257,6 +273,8 @@ function CaptureLive({
         } else {
           const video = await recordVideo(cameraRef, maxVideoSeconds, setIsRecording);
           fileRef.current = { uri: video.path, durationSeconds: Math.round(video.duration) };
+          // Poster frame for the feed — best-effort, never blocks the capture.
+          thumbRef.current = await generateVideoThumbnail(video.path);
         }
         capturedAtRef.current = new Date().toISOString();
       }
@@ -278,6 +296,16 @@ function CaptureLive({
       // 3. PUT bytes (safe to retry — R2 PUT is idempotent on the same key).
       setStage('uploading');
       await uploadBytes(mint.upload_url, file.uri, contentTypeFor(mediaType));
+
+      // 3b. Poster frame (video only) — best-effort. confirm probes for it by
+      //     its canonical key, so a failed PUT just drops the poster, not the post.
+      if (mint.thumbnail_upload_url && thumbRef.current) {
+        try {
+          await uploadBytes(mint.thumbnail_upload_url, thumbRef.current, 'image/jpeg');
+        } catch {
+          // Swallow — the video still posts; the feed shows its black tile.
+        }
+      }
 
       // 4. Best-effort geocode. Never blocks (3s timeout, swallows everything).
       const location = await geocodeOnce(3000);
@@ -301,6 +329,7 @@ function CaptureLive({
       // Clear retry state on success.
       mintRef.current = null;
       fileRef.current = null;
+      thumbRef.current = null;
       capturedAtRef.current = null;
       return post;
     },

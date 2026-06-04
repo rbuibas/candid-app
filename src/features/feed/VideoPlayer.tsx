@@ -40,7 +40,7 @@ export function VideoPlayer({ uri, thumbnailUrl }: { uri: string; thumbnailUrl?:
   }, [player]);
 
   return (
-    <Pressable style={styles.wrap} onPress={togglePlay}>
+    <View style={styles.wrap}>
       <VideoView
         style={StyleSheet.absoluteFill}
         player={player}
@@ -58,18 +58,22 @@ export function VideoPlayer({ uri, thumbnailUrl }: { uri: string; thumbnailUrl?:
         />
       ) : null}
 
-      {!playing ? (
-        <View style={styles.playOverlay} pointerEvents="none">
-          <View style={styles.playButton}>
-            <Text style={styles.playGlyph}>▶</Text>
+      {/* Tap layer sits ABOVE the native VideoView — a parent Pressable never
+          sees the tap because the native video surface consumes it. */}
+      <Pressable style={StyleSheet.absoluteFill} onPress={togglePlay}>
+        {!playing ? (
+          <View style={styles.playOverlay} pointerEvents="none">
+            <View style={styles.playButton}>
+              <Text style={styles.playGlyph}>▶</Text>
+            </View>
           </View>
-        </View>
-      ) : null}
+        ) : null}
+      </Pressable>
 
       <Pressable style={styles.muteButton} onPress={toggleMute} hitSlop={12}>
         <Text style={styles.muteGlyph}>{muted ? '🔇' : '🔊'}</Text>
       </Pressable>
-    </Pressable>
+    </View>
   );
 }
 

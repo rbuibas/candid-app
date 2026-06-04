@@ -24,6 +24,7 @@ export async function runUploadPipeline(
     | 'mediaType'
     | 'promptId'
     | 'localFilePath'
+    | 'thumbnailLocalFilePath'
     | 'capturedAt'
     | 'durationSeconds'
     | 'latitude'
@@ -42,6 +43,16 @@ export async function runUploadPipeline(
   });
 
   await uploadBytes(mint.upload_url, item.localFilePath, contentTypeFor(item.mediaType));
+
+  // Poster frame (video only) — best-effort. confirm probes for it by its
+  // canonical key, so a failed PUT just means the post lands without a poster.
+  if (mint.thumbnail_upload_url && item.thumbnailLocalFilePath) {
+    try {
+      await uploadBytes(mint.thumbnail_upload_url, item.thumbnailLocalFilePath, 'image/jpeg');
+    } catch {
+      // Swallow — the video still posts; the feed shows its black tile instead.
+    }
+  }
 
   return confirmPost({
     post_id: mint.post_id,
