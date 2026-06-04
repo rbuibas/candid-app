@@ -1,6 +1,7 @@
 import { Redirect, Stack } from 'expo-router';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
+import { NameGate } from '@/auth/NameGate';
 import { useSession } from '@/auth/SessionProvider';
 import { useTimezoneSync } from '@/auth/useTimezoneSync';
 import { useUploadQueueFlush } from '@/features/capture/useUploadQueueFlush';
@@ -45,11 +46,16 @@ export default function AppLayout() {
   // checks; the banner floats above the Stack.
   return (
     <ForegroundPushProvider>
-      <NotificationsGate>
-        <AuthedEffects />
-        <Stack screenOptions={{ headerShown: false }} />
-        <ForegroundBanner />
-      </NotificationsGate>
+      {/* NameGate sits outside NotificationsGate so the "set a display name"
+          step (docs/02 onboarding step 4) takes the screen before the push
+          priming modal and the photo-booth redirect (#13). */}
+      <NameGate>
+        <NotificationsGate>
+          <AuthedEffects />
+          <Stack screenOptions={{ headerShown: false }} />
+          <ForegroundBanner />
+        </NotificationsGate>
+      </NameGate>
     </ForegroundPushProvider>
   );
 }
