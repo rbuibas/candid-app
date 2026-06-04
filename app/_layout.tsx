@@ -1,5 +1,6 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { SessionProvider } from '@/auth/SessionProvider';
@@ -20,14 +21,18 @@ function RootEffects() {
 
 export default function RootLayout() {
   return (
-    <SafeAreaProvider>
-      <SessionProvider>
-        <QueryProvider>
-          <RootEffects />
-          <StatusBar style="auto" />
-          <Stack screenOptions={{ headerShown: false }} />
-        </QueryProvider>
-      </SessionProvider>
-    </SafeAreaProvider>
+    // Outermost wrapper required by react-native-gesture-handler so gestures
+    // (e.g. tap-to-focus on the capture camera) are delivered on Android.
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <SessionProvider>
+          <QueryProvider>
+            <RootEffects />
+            <StatusBar style="auto" />
+            <Stack screenOptions={{ headerShown: false }} />
+          </QueryProvider>
+        </SessionProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }

@@ -1,7 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   Camera,
@@ -189,11 +190,11 @@ function CaptureLive({
   // queued-while-offline, group locked mid-capture (409), or window-closed (410).
   const [terminal, setTerminal] = useState<Terminal | null>(null);
   const [isRecording, setIsRecording] = useState(false);
-  // Enhanced-capture toggle (HDR or low-light boost, whichever the device
-  // offers). Default on for best stills; the user can flip it off to get flash
-  // + tap-to-focus instead (mutually exclusive with the vendor extension — see
-  // the coordination block below).
-  const [enhanceEnabled, setEnhanceEnabled] = useState(true);
+  // User flash setting for photo capture. We deliberately do NOT bind any
+  // CameraX vendor extension (HDR / low-light) on this screen: those disable the
+  // flash unit and tap-to-focus on the bound camera (#9, #10), and tap-to-focus
+  // is a hard requirement here. So flash is always available and user-driven.
+  const [flash, setFlash] = useState<'auto' | 'on' | 'off'>('auto');
   const [stage, setStage] = useState<'idle' | 'capturing' | 'minting' | 'uploading' | 'confirming'>(
     'idle',
   );
@@ -202,28 +203,10 @@ function CaptureLive({
   const [focusPoint, setFocusPoint] = useState<FocusPoint | null>(null);
   const focusSeq = useRef(0);
 
-  // --- Vendor-extension vs flash/focus coordination (issue #9) ---------------
-  // HDR and low-light boost are CameraX *vendor extensions*. When either is
-  // active, vision-camera rebinds the session through the extension, and the
-  // bound camera reports NO flash unit and NO focus-metering support — so
-  // takePhoto({ flash: 'auto' }) throws FlashUnavailableError ("does not have a
-  // flash unit") and cam.focus() throws FocusNotSupportedError. The two
-  // extensions also can't bind together (vision-camera throws
-  // LowLightBoostNotSupportedWithHdr at configure time).
-  //
-  // So "enhanced mode" (the user toggle, default on) means: prefer HDR, fall
-  // back to low-light boost when HDR isn't available on this device/format —
-  // whichever one the hardware offers. Turning it off binds NO extension, which
-  // is the only path where flash + tap-to-focus work. The Pixel 7, for example,
-  // exposes low-light boost but not photo-HDR, so the active enhancement there
-  // is NIGHT, not HDR — the toggle has to govern both, not just HDR.
-  const hdrSupported = mode === 'photo' && (format?.supportsPhotoHdr ?? false);
-  const lowLightSupported = mode === 'photo' && (device?.supportsLowLightBoost ?? false);
-  const enhanceAvailable = hdrSupported || lowLightSupported;
-  const photoHdrActive = enhanceEnabled && hdrSupported;
-  const lowLightActive = enhanceEnabled && !photoHdrActive && lowLightSupported;
-  const extensionActive = photoHdrActive || lowLightActive;
-  const focusEnabled = (device?.supportsFocus ?? false) && !extensionActive;
+  // Tap-to-focus is available whenever the sensor supports focus-metering. With
+  // no vendor extension bound (see the `flash` note above) this is true on any
+  // AF-capable device, so focus works on every shot regardless of flash setting.
+  const focusEnabled = device?.supportsFocus ?? false;
 
   // Move the already-captured file into the durable queue and record its
   // metadata so it can flush on reconnect. Returns false if we couldn't even
@@ -273,20 +256,11 @@ function CaptureLive({
         if (mode === 'photo') {
           const cam = cameraRef.current;
           if (!cam) throw new Error('Camera not ready');
-          // Flash only fires in the plain path. Any active vendor extension
-          // (HDR / low-light) disables the flash unit on the bound camera, so
-          // passing anything but 'off' there throws ("does not have a flash
-          // unit") even on devices whose physical sensor has a flash (#9).
-          const flashMode = device?.hasFlash && !extensionActive ? 'auto' : 'off';
-          console.log(
-            '[Capture] takePhoto flash:',
-            flashMode,
-            '(hasFlash:',
-            device?.hasFlash,
-            'extensionActive:',
-            extensionActive,
-            ')',
-          );
+          // Honour the user's flash setting; force 'off' if the sensor has no
+          // flash unit (passing a non-'off' flash there throws). No vendor
+          // extension is bound, so the flash unit is always available (#9).
+          const flashMode = device?.hasFlash ? flash : 'off';
+          console.log('[Capture] takePhoto flash:', flashMode, '(hasFlash:', device?.hasFlash, ')');
           const photo: PhotoFile = await cam.takePhoto({
             // Flash 'auto' when the device has a flash unit (no toggle in the
             // UI, and the app often shoots in low light), else 'off' — passing
@@ -425,21 +399,24 @@ function CaptureLive({
   }, [captureMutation]);
 
   // Tap-to-focus: hand the tapped view coordinate to the camera and pop the
-  // reticle. Guarded on focusEnabled — false on fixed-focus sensors AND while a
-  // vendor extension is bound (HDR / low-light), which disables focus metering.
+  // reticle. Guarded on focusEnabled (false only on fixed-focus sensors).
   const focusAt = useCallback(
     (x: number, y: number) => {
       const cam = cameraRef.current;
       if (!cam || !focusEnabled) return;
       focusSeq.current += 1;
       setFocusPoint({ x, y, id: focusSeq.current });
-      // focus() can legitimately reject mid-capture; log instead of swallowing
-      // so a genuinely-unsupported focus (e.g. under a vendor extension) is
-      // visible rather than silently dead (#9).
+      // focus() can legitimately reject mid-capture; log instead of swallowing.
       cam.focus({ x, y }).catch((e) => console.log('[Capture] focus failed:', e));
     },
     [focusEnabled],
   );
+
+  // A gesture-handler Tap (not the RN Responder system) is what actually
+  // delivers taps over the native camera view on Android — the Responder
+  // overlay silently never fired (#10). e.x/e.y are in the camera view's dp
+  // coordinates, exactly what cam.focus({ x, y }) expects.
+  const tapToFocus = useMemo(() => Gesture.Tap().onEnd((e) => focusAt(e.x, e.y)), [focusAt]);
 
   if (!device) {
     return <ErrorScreen title="No back camera available on this device" />;
@@ -450,39 +427,33 @@ function CaptureLive({
   return (
     <View style={styles.cameraWrap}>
       <Stack.Screen options={{ headerShown: false }} />
-      <Camera
-        ref={cameraRef}
-        style={StyleSheet.absoluteFill}
-        device={device}
-        format={format}
-        // Camera mounts on screen entry (isActive is always true here), so AF/AE
-        // have time to settle before the shutter tap — no lazy pre-warm needed.
-        isActive
-        photo={mode === 'photo'}
-        video={mode === 'video'}
-        audio={mode === 'video'}
-        // 'quality' over the 'balanced' default trades a little capture speed
-        // for higher-accuracy edge detection + AF/AE. If this feels sluggish on
-        // the test Android device, fall back to 'balanced'.
-        photoQualityBalance="quality"
-        photoHdr={photoHdrActive}
-        lowLightBoost={lowLightActive}
-        videoStabilizationMode={stabilizationMode}
-        // Phase-6 compression: cap the encoder bitrate for video prompts so R2
-        // objects stay small (see VIDEO_BITRATE_MBPS). No-op for photo mode.
-        videoBitRate={mode === 'video' ? VIDEO_BITRATE_MBPS : undefined}
-      />
-
-      {/* Tap-to-focus layer: sits beneath the box-none overlay so the shutter
-          and cancel controls keep their own taps, while taps on the bare
-          preview fall through to here. */}
-      {focusEnabled ? (
-        <View
+      {/* GestureDetector wraps the camera so tap-to-focus is delivered reliably
+          over the native preview. The overlay controls below are siblings on
+          top and consume their own taps, so this only fires on the bare preview.
+          No photoHdr / lowLightBoost: vendor extensions disable tap-to-focus and
+          flash on this hardware, and focus is a hard requirement here (#9, #10). */}
+      <GestureDetector gesture={tapToFocus}>
+        <Camera
+          ref={cameraRef}
           style={StyleSheet.absoluteFill}
-          onStartShouldSetResponder={() => true}
-          onResponderRelease={(e) => focusAt(e.nativeEvent.locationX, e.nativeEvent.locationY)}
+          device={device}
+          format={format}
+          // Camera mounts on screen entry (isActive is always true here), so AF/AE
+          // have time to settle before the shutter tap — no lazy pre-warm needed.
+          isActive
+          photo={mode === 'photo'}
+          video={mode === 'video'}
+          audio={mode === 'video'}
+          // 'quality' over the 'balanced' default trades a little capture speed
+          // for higher-accuracy edge detection + AF/AE. If this feels sluggish on
+          // the test Android device, fall back to 'balanced'.
+          photoQualityBalance="quality"
+          videoStabilizationMode={stabilizationMode}
+          // Phase-6 compression: cap the encoder bitrate for video prompts so R2
+          // objects stay small (see VIDEO_BITRATE_MBPS). No-op for photo mode.
+          videoBitRate={mode === 'video' ? VIDEO_BITRATE_MBPS : undefined}
         />
-      ) : null}
+      </GestureDetector>
 
       <SafeAreaView style={styles.overlay} pointerEvents="box-none">
         <View style={styles.topBar}>
@@ -490,27 +461,21 @@ function CaptureLive({
             <Text style={styles.closeBtnText}>Cancel</Text>
           </Pressable>
           <View style={styles.topRight}>
-            {/* Enhance toggle: shown whenever the device offers HDR or low-light
-                boost. On = the vendor extension (no flash, no tap-to-focus);
-                off = plain path with flash auto + tap-to-focus. Labelled with
-                the mode actually in effect so it's honest on devices that only
-                offer one of the two. Locked mid-capture to avoid reconfiguring
-                the session during a shot. */}
-            {enhanceAvailable ? (
+            {/* Flash control: photo mode only, and only if the sensor has a
+                flash unit. Cycles Auto → On → Off. Locked mid-capture. */}
+            {mode === 'photo' && device.hasFlash ? (
               <Pressable
-                onPress={() => setEnhanceEnabled((v) => !v)}
+                onPress={() => setFlash((f) => (f === 'auto' ? 'on' : f === 'on' ? 'off' : 'auto'))}
                 disabled={isPending}
                 hitSlop={12}
-                style={[styles.hdrChip, !enhanceEnabled && styles.hdrChipOff]}
+                style={[styles.flashChip, flash === 'off' && styles.flashChipOff]}
               >
-                <Text style={[styles.hdrChipText, !enhanceEnabled && styles.hdrChipTextOff]}>
-                  {enhanceEnabled
-                    ? photoHdrActive
-                      ? 'HDR'
-                      : 'Low light'
-                    : device.hasFlash
-                      ? 'Flash'
-                      : 'Standard'}
+                <Text style={[styles.flashChipText, flash === 'off' && styles.flashChipTextOff]}>
+                  {flash === 'auto'
+                    ? 'Flash · Auto'
+                    : flash === 'on'
+                      ? 'Flash · On'
+                      : 'Flash · Off'}
                 </Text>
               </Pressable>
             ) : null}
@@ -774,15 +739,15 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   modeChipText: { color: '#fff', fontWeight: '600', fontSize: 13 },
-  hdrChip: {
+  flashChip: {
     paddingVertical: 6,
     paddingHorizontal: 12,
     backgroundColor: '#f5c518',
     borderRadius: 12,
   },
-  hdrChipOff: { backgroundColor: 'rgba(0,0,0,0.4)' },
-  hdrChipText: { color: '#1f2328', fontWeight: '700', fontSize: 13 },
-  hdrChipTextOff: { color: '#fff', fontWeight: '600' },
+  flashChipOff: { backgroundColor: 'rgba(0,0,0,0.4)' },
+  flashChipText: { color: '#1f2328', fontWeight: '700', fontSize: 13 },
+  flashChipTextOff: { color: '#fff', fontWeight: '600' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   stagePill: {
     paddingVertical: 8,
