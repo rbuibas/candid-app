@@ -46,7 +46,10 @@ export function useActivePromptHydration(): void {
 
     const first = actionable[0];
     if (!first) return;
-    router.push({
+    // replace, not push — using push would stack a new prompt screen on every
+    // foreground while the prompt is still active/late, forcing the user to
+    // back through all the duplicates to return to the feed (#14).
+    router.replace({
       pathname: '/(app)/groups/[id]/prompts/[promptId]',
       params: { id: first.group_id, promptId: first.id },
     });

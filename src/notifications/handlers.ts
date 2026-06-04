@@ -25,7 +25,11 @@ import { parsePromptPushPayload, type PromptPushPayload } from './payload';
  */
 
 function routeToPrompt(router: Router, payload: PromptPushPayload) {
-  router.push({
+  // replace, not push — tapping multiple pushes (or the same prompt twice)
+  // must not stack duplicate prompt screens that the user has to back through
+  // (#14). The prompt screen's onBack uses replace back to the feed, so
+  // replace here keeps the history clean in all entry paths.
+  router.replace({
     pathname: '/(app)/groups/[id]/prompts/[promptId]',
     params: { id: payload.group_id, promptId: payload.prompt_id },
   });
