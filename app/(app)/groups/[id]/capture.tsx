@@ -152,22 +152,6 @@ function CaptureLive({
   onLeave: () => void;
 }) {
   const device = useCameraDevice('back');
-  // Log device capabilities on every device change so we can verify flash
-  // detection in logs (search "[Capture]" in Metro / logcat).
-  useEffect(() => {
-    if (device) {
-      console.log(
-        '[Capture] device:',
-        device.name,
-        'hasFlash:',
-        device.hasFlash,
-        'hasTorch:',
-        device.hasTorch,
-        'supportsFocus:',
-        device.supportsFocus,
-      );
-    }
-  }, [device]);
   // Explicitly choose the sharpest format for this prompt's media type instead
   // of letting vision-camera pick a balanced default (see useBestFormat).
   const format = useBestFormat(device, mode);
@@ -260,25 +244,18 @@ function CaptureLive({
           // flash unit (passing a non-'off' flash there throws). No vendor
           // extension is bound, so the flash unit is always available (#9).
           const flashMode = device?.hasFlash ? flash : 'off';
-          console.log('[Capture] takePhoto flash:', flashMode, '(hasFlash:', device?.hasFlash, ')');
           const photo: PhotoFile = await cam.takePhoto({
-            // Flash 'auto' when the device has a flash unit (no toggle in the
-            // UI, and the app often shoots in low light), else 'off' — passing
-            // a non-'off' flash to a flashless device makes vision-camera throw
-            // ("camera device does not have a flash unit"). Shutter sound off —
-            // the prompt push is the cue; the click is just noise. We
-            // intentionally do NOT pass qualityPrioritization (that moved to the
-            // <Camera photoQualityBalance> prop in vision-camera v4) nor
-            // enableAutoRedEyeReduction (adds shutter latency, and spontaneity
-            // beats red-eye here).
+            // Shutter sound off — the prompt push is the cue; the click is just
+            // noise. We intentionally do NOT pass qualityPrioritization (that
+            // moved to the <Camera photoQualityBalance> prop in vision-camera v4)
+            // nor enableAutoRedEyeReduction (adds shutter latency, and
+            // spontaneity beats red-eye here).
             flash: flashMode,
             enableShutterSound: false,
           });
-          console.log('[Capture] takePhoto OK → path:', photo.path);
           fileRef.current = { uri: photo.path };
         } else {
           const video = await recordVideo(cameraRef, maxVideoSeconds, setIsRecording);
-          console.log('[Capture] recordVideo OK → path:', video.path, 'dur:', video.duration);
           fileRef.current = { uri: video.path, durationSeconds: Math.round(video.duration) };
         }
         capturedAtRef.current = new Date().toISOString();
@@ -287,7 +264,6 @@ function CaptureLive({
       // 2. Mint upload URL (skip if a prior attempt already minted one).
       if (!mintRef.current) {
         setStage('minting');
-        console.log('[Capture] minting upload URL…');
         mintRef.current = await createUploadUrl({
           group_id: groupId,
           kind: 'prompt',
@@ -295,16 +271,13 @@ function CaptureLive({
           extension,
           prompt_id: promptId,
         });
-        console.log('[Capture] mint OK → post_id:', mintRef.current.post_id);
       }
       const mint = mintRef.current;
       const file = fileRef.current;
 
       // 3. PUT bytes (safe to retry — R2 PUT is idempotent on the same key).
       setStage('uploading');
-      console.log('[Capture] uploading bytes →', file.uri);
       await uploadBytes(mint.upload_url, file.uri, contentTypeFor(mediaType));
-      console.log('[Capture] upload OK');
 
       // 4. Best-effort geocode. Never blocks (3s timeout, swallows everything).
       const location = await geocodeOnce(3000);
@@ -324,7 +297,6 @@ function CaptureLive({
         accuracy: location?.accuracy ?? undefined,
         prompt_id: promptId,
       });
-      console.log('[Capture] confirm OK → post:', post.id);
 
       // Clear retry state on success.
       mintRef.current = null;
@@ -350,25 +322,6 @@ function CaptureLive({
     },
     onError: (err) => {
       setStage('idle');
-      // TEMP TRACE: surface the real error + its classification so we can see
-      // which pipeline step failed and why (remove once #9 is diagnosed).
-      console.log(
-        '[Capture] FAILED →',
-        err instanceof ApiError
-          ? `ApiError ${err.status}: ${err.body || err.message}`
-          : err instanceof Error
-            ? `${err.name}: ${err.message}`
-            : String(err),
-        '| class:',
-        isGroupLockedError(err)
-          ? 'locked'
-          : isMissedError(err)
-            ? 'missed'
-            : isRetryable(err)
-              ? 'retryable→offline'
-              : 'hard-error',
-      );
-      if (err instanceof Error && err.stack) console.log('[Capture] stack:', err.stack);
       // Capture raced past the group's end_date lock — the event is over.
       if (isGroupLockedError(err)) {
         setTerminal('locked');
@@ -406,8 +359,8 @@ function CaptureLive({
       if (!cam || !focusEnabled) return;
       focusSeq.current += 1;
       setFocusPoint({ x, y, id: focusSeq.current });
-      // focus() can legitimately reject mid-capture; log instead of swallowing.
-      cam.focus({ x, y }).catch((e) => console.log('[Capture] focus failed:', e));
+      // focus() can legitimately reject if a capture is in flight — ignore it.
+      cam.focus({ x, y }).catch(() => {});
     },
     [focusEnabled],
   );
