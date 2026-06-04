@@ -30,9 +30,10 @@ This feature adds `expo-media-library` (and `expo-keep-awake`). New native modul
 3. Install the new build on your device.
 4. Start Metro fresh: `npx expo start --dev-client --clear`
 
-iOS note: the OS prompt must say **"Add Only"** (not full library access). If you
-see a full-access prompt, the write-only config didn't take — stop and fix before
-continuing.
+Permission note: we request **full** photo access (read + write). Read lets us
+reuse one "Candid" album and file a whole batch with a single OS consent instead
+of a per-photo "Allow … to modify" prompt. This does NOT add a library picker to
+capture — capture is live-only and there is no image-picker dependency.
 
 ## Tools you'll need
 
@@ -84,7 +85,11 @@ continuing.
       "No posts to save," not a 0/0 progress sheet.
 - [ ] **Reinstall**: after reinstall, the download store is reset (acceptable),
       but the camera-roll items remain.
-- [ ] **iOS access level**: Settings → Candid shows **Add Photos Only**, not Full
-      Access.
+- [ ] **One album consent, not per-photo**: a bulk run shows at most one (first
+      ever: up to two) "Allow … to modify" / album consent for the whole batch —
+      never one per photo. The run does NOT falsely flip to "Paused" because of
+      that dialog.
+- [ ] **No duplicate albums**: after several runs/launches there is a single
+      "Candid" album, not one per run.
 - [ ] **Onboarding honesty line**: the join screen shows "Anything you post can be
       saved to other members' phones."

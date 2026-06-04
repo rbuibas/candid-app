@@ -24,19 +24,13 @@ const config: ExpoConfig = {
     // the OS prompt for it on first ask.
     //
     // WRITE_EXTERNAL_STORAGE (API ≤ 28 only) lets expo-media-library save a
-    // post into the camera roll on older devices; on API 29+ saving to the
-    // shared MediaStore needs no runtime permission. We deliberately do NOT
-    // declare any READ_* media permission — Candid is write-only and never
-    // enumerates the user's library (CLAUDE.md non-negotiable #2). The block
-    // list below strips the read permissions the media-library plugin would
-    // otherwise add by default.
+    // post into the camera roll on older devices. READ_MEDIA_IMAGES/VIDEO
+    // (added by the media-library plugin) let us look up the existing "Candid"
+    // album and batch the album-filing into a single MediaStore write request
+    // — without read access Android prompts "Allow … to modify" once per item.
+    // We still block ACCESS_MEDIA_LOCATION: we never need photo geolocation.
     permissions: ['POST_NOTIFICATIONS', 'WRITE_EXTERNAL_STORAGE'],
-    blockedPermissions: [
-      'android.permission.READ_EXTERNAL_STORAGE',
-      'android.permission.READ_MEDIA_IMAGES',
-      'android.permission.READ_MEDIA_VIDEO',
-      'android.permission.ACCESS_MEDIA_LOCATION',
-    ],
+    blockedPermissions: ['android.permission.ACCESS_MEDIA_LOCATION'],
     googleServicesFile: './google-services.json',
   },
   plugins: [
@@ -69,11 +63,13 @@ const config: ExpoConfig = {
     [
       'expo-media-library',
       {
-        // Write-only ("Add Only" on iOS): we only ever ADD to the camera roll.
-        // Setting photosPermission to false omits NSPhotoLibraryUsageDescription
-        // (full read access) from Info.plist entirely; savePhotosPermission maps
-        // to NSPhotoLibraryAddUsageDescription, the add-only string the OS shows.
-        photosPermission: false,
+        // Full (read + write) access. Read lets us find and reuse the existing
+        // "Candid" album rather than duplicating it, and file saved posts into
+        // it with a single OS consent instead of one "modify" prompt per item.
+        // (Capture stays live-only — there is no image picker in the app, so
+        // read access can't be used to select from the library.)
+        photosPermission:
+          "Candid saves your group's photos and videos to your camera roll and keeps them in a Candid album.",
         savePhotosPermission:
           "Candid saves your group's photos and videos to your camera roll, in the Candid album.",
         isAccessMediaLocationEnabled: false,

@@ -1,10 +1,11 @@
 import * as FileSystem from 'expo-file-system';
+import { type Asset } from 'expo-media-library';
 
 import { getGroupFeed, type FeedItem } from '@/api/feed';
 import { getPost, type PostMediaType } from '@/api/posts';
 
 import { markDownloaded } from './downloadStore';
-import { saveAssetToCameraRoll } from './save';
+import { fileAssetsIntoAlbum, saveAssetOnly } from './save';
 
 /**
  * Bulk download orchestrator — pages through a group's entire feed and saves
@@ -113,11 +114,16 @@ export async function collectFeedItems(groupId: string): Promise<BulkItem[]> {
 }
 
 /**
- * Saves one item: download → save to camera roll → mark in store → release
- * temp file. On an expired/missing signed URL (non-200), re-mints a fresh URL
- * via `GET /posts/{id}` and retries once before giving up.
+ * Downloads one item and saves it to the camera roll, returning the new asset.
+ * On an expired/missing signed URL (non-200), re-mints a fresh URL via
+ * `GET /posts/{id}` and retries once before giving up.
+ *
+ * Note: this does NOT file the asset into the album — that's deferred to a
+ * single batched `fileAssetsIntoAlbum` call after the whole run, so the OS
+ * "modify" consent is paid once for the set rather than once per item (and so
+ * no system dialog appears mid-loop to trip the background-pause logic).
  */
-async function saveOne(item: BulkItem): Promise<void> {
+async function downloadAndSave(item: BulkItem): Promise<Asset> {
   let tempUri: string | null = null;
   try {
     try {
@@ -128,8 +134,9 @@ async function saveOne(item: BulkItem): Promise<void> {
       const fresh = await getPost(item.id);
       tempUri = await downloadToTempFile(fresh.media_url, item.id, item.mediaType);
     }
-    await saveAssetToCameraRoll(tempUri, item.mediaType);
+    const asset = await saveAssetOnly(tempUri, item.mediaType);
     markDownloaded(item.id);
+    return asset;
   } finally {
     if (tempUri) await releaseTempFile(tempUri).catch(() => undefined);
   }
@@ -152,14 +159,17 @@ export async function runBulkDownload(
 ): Promise<BulkSummary> {
   const total = items.length;
   let saved = 0;
+  let aborted = false;
   const failedItems: BulkItem[] = [];
+  const assets: Asset[] = [];
 
   for (const item of items) {
     if (isAborted?.()) {
-      return { total, saved, failedItems, aborted: true };
+      aborted = true;
+      break;
     }
     try {
-      await saveOne(item);
+      assets.push(await downloadAndSave(item));
       saved += 1;
     } catch (err) {
       failedItems.push(item);
@@ -169,5 +179,15 @@ export async function runBulkDownload(
     onProgress?.({ total, saved, failed: failedItems.length });
   }
 
-  return { total, saved, failedItems, aborted: false };
+  // Best-effort, single pass: file everything we saved into the Candid album in
+  // one batched operation (one OS consent for the set, not one per item). The
+  // assets are already in the camera roll, so a failure here only leaves them
+  // unfiled — it never loses media.
+  if (assets.length > 0) {
+    await fileAssetsIntoAlbum(assets).catch((err) => {
+      console.warn('[bulkDownload] album organize failed:', err);
+    });
+  }
+
+  return { total, saved, failedItems, aborted };
 }

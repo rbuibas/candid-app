@@ -13,13 +13,21 @@ import { AppState, Linking } from 'react-native';
  *   'denied'        — asked and rejected; OS prompt won't reappear, send the
  *                      user to system settings via openSettings()
  *
- * CRITICAL (CLAUDE.md non-negotiable #2): we request **write-only** access
- * (`writeOnly: true` → iOS "Add Only" / Android no read perms). We never
- * enumerate or read back the user's library. Do not flip this to full access.
+ * We request **full** (read + write) access. Read is needed so we can find and
+ * reuse the existing "Candid" album instead of creating a duplicate on every
+ * launch, and so the camera-roll save can organise assets into the album with a
+ * single OS consent rather than one per item (Android's per-item "modify"
+ * prompt otherwise fires for every photo). This relaxes the feature spec's
+ * original write-only stance per an explicit product decision.
+ *
+ * NOTE: read access here does NOT add any library picker to capture — capture
+ * is live-only via react-native-vision-camera and there is no image-picker
+ * dependency in the app. Library selection is impossible regardless of grant.
  */
 export type MediaPermissionStatus = 'unknown' | 'undetermined' | 'granted' | 'denied';
 
-const WRITE_ONLY = true;
+// false → full read+write access (iOS full library, Android read+write media).
+const WRITE_ONLY = false;
 
 function fromResponse(res: MediaLibrary.PermissionResponse): MediaPermissionStatus {
   if (res.granted) return 'granted';
