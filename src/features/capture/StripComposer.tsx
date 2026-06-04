@@ -4,9 +4,10 @@ import { captureRef } from 'react-native-view-shot';
 
 /**
  * Off-screen JPEG composer for the photo-booth strip. Receives the three
- * frame URIs as a prop, mounts them stacked in a 1080×3240 hidden View, and
- * exposes an imperative `compose()` that waits for all three to load and
- * returns the captured strip's tmpfile URI.
+ * frame URIs as a prop, mounts them in a hidden View styled as a classic
+ * photo-booth strip (cream background, side/top/bottom padding, gutters
+ * between frames), and exposes an imperative `compose()` that waits for all
+ * three images to load then returns the captured strip's tmpfile URI.
  *
  * Why off-screen instead of `<Modal>` or a separate screen: the strip should
  * be invisible to the user (the photo-booth UX is "3 captures → upload",
@@ -14,13 +15,20 @@ import { captureRef } from 'react-native-view-shot';
  * the window so `captureRef` can snapshot it but outside the visible
  * viewport so it never paints.
  *
- * Each frame is square (1080×1080) with `resizeMode='cover'` so portrait or
- * landscape photos crop to a consistent strip shape, matching a physical
- * photo-booth strip. The whole strip is 1:3 aspect — vertical orientation.
+ * Layout (all values in px at 1× — captureRef snaps the logical pixel size):
+ *   - Strip width: 1080
+ *   - Side padding: 36 each side  → frame width: 1008
+ *   - Frame: square 1008×1008, resizeMode cover
+ *   - Top / bottom padding: 60
+ *   - Gutter between frames: 24
+ *   - Total height: 60 + 1008 + 24 + 1008 + 24 + 1008 + 60 = 3192
  */
-const FRAME_SIZE = 1080;
-const STRIP_WIDTH = FRAME_SIZE;
-const STRIP_HEIGHT = FRAME_SIZE * 3;
+const STRIP_WIDTH = 1080;
+const SIDE_PAD = 36;
+const V_PAD = 60;
+const GUTTER = 24;
+const FRAME_SIZE = STRIP_WIDTH - SIDE_PAD * 2; // 1008
+const STRIP_HEIGHT = V_PAD * 2 + FRAME_SIZE * 3 + GUTTER * 2; // 3192
 
 export type StripComposerRef = {
   compose: () => Promise<string>;
@@ -94,8 +102,12 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: -100000,
     top: -100000,
-    backgroundColor: '#000',
+    // Warm white/cream — classic photo-strip paper colour.
+    backgroundColor: '#f5f0e8',
     flexDirection: 'column',
+    paddingHorizontal: SIDE_PAD,
+    paddingVertical: V_PAD,
+    gap: GUTTER,
   },
   frame: {
     width: FRAME_SIZE,

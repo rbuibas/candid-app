@@ -2,9 +2,10 @@ import { Image } from 'expo-image';
 import { StyleSheet } from 'react-native';
 
 /**
- * Renders a photo-booth strip. The strip is already a composed 1:3 image
- * (see src/features/capture/StripComposer.tsx), so we just present it at that
- * aspect with expo-image's caching + contain fit.
+ * Renders a photo-booth strip. The strip is a composed JPEG (see
+ * src/features/capture/StripComposer.tsx) at 1080×3192 — a classic strip
+ * layout with cream background, side padding, and gutters between frames.
+ * We present it at the same aspect ratio so it fills the card width cleanly.
  */
 export function StripImage({ uri }: { uri: string }) {
   return <Image source={{ uri }} style={styles.strip} contentFit="contain" transition={150} />;
@@ -13,7 +14,8 @@ export function StripImage({ uri }: { uri: string }) {
 const styles = StyleSheet.create({
   strip: {
     width: '100%',
-    aspectRatio: 1 / 3,
-    backgroundColor: '#000',
+    // 1080 × 3192 — matches StripComposer output dimensions.
+    aspectRatio: 1080 / 3192,
+    backgroundColor: '#f5f0e8',
   },
 });
