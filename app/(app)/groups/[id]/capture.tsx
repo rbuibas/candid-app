@@ -8,6 +8,7 @@ import {
   Camera,
   useCameraDevice,
   type CameraCaptureError,
+  type CameraRuntimeError,
   type PhotoFile,
   type VideoFile,
 } from 'react-native-vision-camera';
@@ -155,7 +156,19 @@ function CaptureLive({
   const device = useCameraDevice('back');
   // Explicitly choose the sharpest format for this prompt's media type instead
   // of letting vision-camera pick a balanced default (see useBestFormat).
-  const format = useBestFormat(device, mode);
+  const preferredFormat = useBestFormat(device, mode);
+  // Some devices can't configure a camera session with our forced max-resolution
+  // format: the photo (e.g. a 50MP sensor) + preview stream combination exceeds
+  // what the hardware guarantees, and vision-camera throws
+  // `session/invalid-output-configuration` (or `session/hardware-cost-too-high`).
+  // When that happens we fall back to `undefined`, letting vision-camera auto-pick
+  // a valid combination, so capture never hard-fails on a guest's device. Reset
+  // on mode change since photo and video select different formats.
+  const [formatFailed, setFormatFailed] = useState(false);
+  useEffect(() => {
+    setFormatFailed(false);
+  }, [mode]);
+  const format = formatFailed ? undefined : preferredFormat;
   const stabilizationMode = bestStabilizationMode(format);
   const qc = useQueryClient();
   const cameraRef = useRef<Camera>(null);
@@ -195,6 +208,30 @@ function CaptureLive({
   // no vendor extension bound (see the `flash` note above) this is true on any
   // AF-capable device, so focus works on every shot regardless of flash setting.
   const focusEnabled = device?.supportsFocus ?? false;
+
+  // The camera session can fail to configure on devices whose hardware can't
+  // satisfy our forced max-resolution format alongside the preview stream. We
+  // catch that one class of error and retry with an auto-picked format (see
+  // `formatFailed`); any other runtime error is logged for diagnosis.
+  const onCameraError = useCallback(
+    (err: CameraRuntimeError) => {
+      const isConfigError =
+        err.code === 'session/invalid-output-configuration' ||
+        err.code === 'session/hardware-cost-too-high';
+      if (isConfigError && !formatFailed) {
+        // eslint-disable-next-line no-console
+        console.warn(
+          `[capture] ${device?.name ?? 'device'} can't configure ${mode} session ` +
+            `with forced format (${err.code}); falling back to auto-picked format`,
+        );
+        setFormatFailed(true);
+        return;
+      }
+      // eslint-disable-next-line no-console
+      console.error(`[capture] camera runtime error: ${err.code}`, err.message);
+    },
+    [device, mode, formatFailed],
+  );
 
   // Move the already-captured file into the durable queue and record its
   // metadata so it can flush on reconnect. Returns false if we couldn't even
@@ -423,6 +460,7 @@ function CaptureLive({
           // Camera mounts on screen entry (isActive is always true here), so AF/AE
           // have time to settle before the shutter tap — no lazy pre-warm needed.
           isActive
+          onError={onCameraError}
           photo={mode === 'photo'}
           video={mode === 'video'}
           audio={mode === 'video'}

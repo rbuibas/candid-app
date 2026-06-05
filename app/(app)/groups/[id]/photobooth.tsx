@@ -3,7 +3,12 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Camera, useCameraDevice, type PhotoFile } from 'react-native-vision-camera';
+import {
+  Camera,
+  useCameraDevice,
+  type CameraRuntimeError,
+  type PhotoFile,
+} from 'react-native-vision-camera';
 
 import { ApiError } from '@/api/client';
 import { getGroup } from '@/api/groups';
@@ -61,15 +66,44 @@ function PhotoBoothLive({ groupId, onBack }: { groupId: string; onBack: () => vo
   // the avatar + first feed post, so its quality matters just as much. The
   // booth is always photo mode (front camera, no tap-to-focus: it auto-fires on
   // a countdown and the subject is at a fixed arm's length).
-  const format = useBestFormat(device, 'photo');
+  const preferredFormat = useBestFormat(device, 'photo');
+  // Some devices can't configure a session with our forced max-resolution format
+  // alongside the preview stream: vision-camera throws
+  // `session/invalid-output-configuration` (or `session/hardware-cost-too-high`)
+  // and the booth never starts. On that error we fall back to `undefined` so
+  // vision-camera auto-picks a valid combination (see `onCameraError`).
+  const [formatFailed, setFormatFailed] = useState(false);
+  const format = formatFailed ? undefined : preferredFormat;
   // HDR and low-light boost are CameraX vendor extensions and cannot bind
   // together — passing both throws LowLightBoostNotSupportedWithHdr at session
   // configure time, so the booth camera never starts. Prefer HDR; fall back to
   // low-light boost only when HDR isn't available. (The booth is flash-off and
   // has no tap-to-focus, so the extension's flash/focus limits don't matter
-  // here — only the simultaneous-bind crash does.)
-  const photoHdrActive = format?.supportsPhotoHdr ?? false;
-  const lowLightActive = !photoHdrActive && (device?.supportsLowLightBoost ?? false);
+  // here — only the simultaneous-bind crash does.) On a format fallback we drop
+  // both extensions too: they add their own stream-config constraints and may be
+  // what the hardware couldn't satisfy in the first place.
+  const photoHdrActive = !formatFailed && (preferredFormat?.supportsPhotoHdr ?? false);
+  const lowLightActive =
+    !formatFailed && !photoHdrActive && (device?.supportsLowLightBoost ?? false);
+  const onCameraError = useCallback(
+    (err: CameraRuntimeError) => {
+      const isConfigError =
+        err.code === 'session/invalid-output-configuration' ||
+        err.code === 'session/hardware-cost-too-high';
+      if (isConfigError && !formatFailed) {
+        // eslint-disable-next-line no-console
+        console.warn(
+          `[photobooth] ${device?.name ?? 'device'} can't configure booth session ` +
+            `with forced format (${err.code}); falling back to auto-picked format`,
+        );
+        setFormatFailed(true);
+        return;
+      }
+      // eslint-disable-next-line no-console
+      console.error(`[photobooth] camera runtime error: ${err.code}`, err.message);
+    },
+    [device, formatFailed],
+  );
   const cameraRef = useRef<Camera>(null);
   const composerRef = useRef<StripComposerRef>(null);
   const qc = useQueryClient();
@@ -212,6 +246,7 @@ function PhotoBoothLive({ groupId, onBack }: { groupId: string; onBack: () => vo
         device={device}
         format={format}
         isActive={phase.kind === 'countdown' || phase.kind === 'capturing'}
+        onError={onCameraError}
         photo
         audio={false}
         // 'quality' for the sharpest avatar/strip. The ~3s countdown between
