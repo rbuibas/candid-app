@@ -20,6 +20,12 @@ export type UploadUrlResponse = {
   upload_url: string;
   storage_path: string;
   expires_at: string;
+  // Video only: a second presigned PUT slot for the client-generated poster
+  // frame (JPEG). Null for photo/strip. confirm detects the uploaded poster by
+  // its canonical key, so this upload is best-effort — a miss never blocks the
+  // post.
+  thumbnail_upload_url: string | null;
+  thumbnail_storage_path: string | null;
 };
 
 export type ConfirmPostRequest = {

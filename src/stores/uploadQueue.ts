@@ -23,6 +23,8 @@ export type QueueStatus = 'pending' | 'uploading' | 'failed';
 export type QueueItem = {
   id: string;
   localFilePath: string;
+  /** Video only: local poster frame to PUT alongside the media on flush. */
+  thumbnailLocalFilePath?: string;
   groupId: string;
   kind: PostKind;
   mediaType: PostMediaType;

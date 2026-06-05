@@ -22,7 +22,15 @@ const config: ExpoConfig = {
     // POST_NOTIFICATIONS is the Android 13+ runtime permission gating FCM
     // foreground display. RN Firebase Messaging's requestPermission triggers
     // the OS prompt for it on first ask.
-    permissions: ['POST_NOTIFICATIONS'],
+    //
+    // WRITE_EXTERNAL_STORAGE (API ≤ 28 only) lets expo-media-library save a
+    // post into the camera roll on older devices. READ_MEDIA_IMAGES/VIDEO
+    // (added by the media-library plugin) let us look up the existing "Candid"
+    // album and batch the album-filing into a single MediaStore write request
+    // — without read access Android prompts "Allow … to modify" once per item.
+    // We still block ACCESS_MEDIA_LOCATION: we never need photo geolocation.
+    permissions: ['POST_NOTIFICATIONS', 'WRITE_EXTERNAL_STORAGE'],
+    blockedPermissions: ['android.permission.ACCESS_MEDIA_LOCATION'],
     googleServicesFile: './google-services.json',
   },
   plugins: [
@@ -50,6 +58,21 @@ const config: ExpoConfig = {
       {
         locationWhenInUsePermission:
           'Candid can optionally attach where a moment was captured so you can revisit it later.',
+      },
+    ],
+    [
+      'expo-media-library',
+      {
+        // Full (read + write) access. Read lets us find and reuse the existing
+        // "Candid" album rather than duplicating it, and file saved posts into
+        // it with a single OS consent instead of one "modify" prompt per item.
+        // (Capture stays live-only — there is no image picker in the app, so
+        // read access can't be used to select from the library.)
+        photosPermission:
+          "Candid saves your group's photos and videos to your camera roll and keeps them in a Candid album.",
+        savePhotosPermission:
+          "Candid saves your group's photos and videos to your camera roll, in the Candid album.",
+        isAccessMediaLocationEnabled: false,
       },
     ],
   ],
