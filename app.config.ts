@@ -4,8 +4,10 @@ import type { ExpoConfig } from 'expo/config';
 // pending the final product name. Renaming them creates a new app identity
 // on the stores, so settle the name before the first TestFlight submission.
 
+const IS_DEV = process.env.APP_VARIANT === 'development';
+
 const config: ExpoConfig = {
-  name: 'Candid',
+  name: IS_DEV ? 'Candid (dev)' : 'Candid',
   slug: 'candid',
   scheme: 'candid',
   version: '0.1.0',
@@ -18,7 +20,7 @@ const config: ExpoConfig = {
     supportsTablet: false,
   },
   android: {
-    package: 'app.candid',
+    package: IS_DEV ? 'app.candid.mobile.dev' : 'app.candid.mobile',
     // POST_NOTIFICATIONS is the Android 13+ runtime permission gating FCM
     // foreground display. RN Firebase Messaging's requestPermission triggers
     // the OS prompt for it on first ask.

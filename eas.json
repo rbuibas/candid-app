@@ -13,6 +13,9 @@
       },
       "ios": {
         "simulator": true
+      },
+      "env": {
+        "APP_VARIANT": "development"
       }
     },
     "preview": {
