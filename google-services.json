@@ -9,7 +9,26 @@
       "client_info": {
         "mobilesdk_app_id": "1:733784675910:android:dd35bb7f164a6501a5dc47",
         "android_client_info": {
-          "package_name": "app.candid"
+          "package_name": "app.candid.mobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAVojILc7TdmCoUsG_m_rjdVe8VNK-kjgo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:733784675910:android:dd35bb7f164a6501a5dc47",
+        "android_client_info": {
+          "package_name": "app.candid.mobile.dev"
         }
       },
       "oauth_client": [],
