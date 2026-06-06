@@ -49,7 +49,10 @@ export default function ActivePromptScreen() {
     );
   }
 
-  if (promptQ.isError || !promptQ.data) {
+  // Only hard-error when we have no data at all. A failed background
+  // revalidation (e.g. offline refetchOnMount) while cached data exists
+  // should not block the capture UI.
+  if (!promptQ.data) {
     return (
       <FullScreen title="Prompt">
         <Text style={styles.errorText}>

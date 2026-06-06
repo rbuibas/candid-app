@@ -54,11 +54,11 @@ After the new APK is installed, all subsequent JS changes hot-reload normally.
   - [x] Strip renders as the composed vertical image without distortion.
 
 ### 3. Photo-booth completion lands on the feed
-- [ ] Join a brand-new group (use a second account if needed) and complete the photo-booth.
-- [ ] **Expect:** after the strip uploads, you land on the **feed** (not the old group detail), with your strip visible as the first and only post.
+- [x] Join a brand-new group (use a second account if needed) and complete the photo-booth.
+- [x] **Expect:** after the strip uploads, you land on the **feed** (not the old group detail), with your strip visible as the first and only post.
 
 ### 4. Info screen accessible from header
-- [ ] On any group feed, tap the "Info" button in the header.
+- [x] On any group feed, tap the "Info" button in the header.
 - [x] **Expect:** the info sub-screen opens with name, dates, lifecycle badge, invite affordance (code + share), member list, and the delete-group action (creator only).
 - [x] Navigate back.
 - [x] **Expect:** returns to the feed without losing scroll position.
@@ -72,9 +72,9 @@ After the new APK is installed, all subsequent JS changes hot-reload normally.
 - [ ] **Expect:** footer spinner briefly appears; next page loads seamlessly; no duplicate posts; no missing gaps; scroll position holds stable through the load.
 
 ### 7. Late badge
-- [ ] Dev-fire a prompt → wait past `response_window_seconds` but before `late_deadline` (default: 5–35 min after dispatch) → capture.
-- [ ] Open the feed.
-- [ ] **Expect:** that post shows the "late" badge inline with the timestamp. Other on-time posts have no badge.
+- [x] Dev-fire a prompt → wait past `response_window_seconds` but before `late_deadline` (default: 5–35 min after dispatch) → capture.
+- [x] Open the feed.
+- [x] **Expect:** that post shows the "late" badge inline with the timestamp. Other on-time posts have no badge.
 
 ### 8. Video playback
 - [x] Tap a video post.
@@ -88,34 +88,34 @@ After the new APK is installed, all subsequent JS changes hot-reload normally.
 - [x] Tap Delete → confirm.
 - [x] **Expect:**
   - [x] Post disappears from the feed immediately (optimistic update).
-  - [ ] `posts` row has `deleted_at` set (check Supabase SQL editor).
-  - [ ] R2 object at `storage_path` is **actually gone** — `HEAD` on it returns 404 (verify via R2 dashboard or `curl --head "<storage_path>"`).
+  - [x] `posts` row has `deleted_at` set — automated: `test_feed_lists_post_then_delete_removes_it_everywhere` in `tests/integration/test_feed.py`.
+  - [x] R2 object at `storage_path` is **actually gone** — automated: same test asserts `r2.head_object(storage_path) is False`.
   - [x] Pull-to-refresh confirms the post does not reappear.
 
 ### 10. Cross-device delete propagation
-- [ ] Two accounts in the same group. Both have the feed open.
-- [ ] Delete a post from account A.
-- [ ] On account B, pull-to-refresh.
-- [ ] **Expect:** the post is gone from B's feed.
+- [x] Two accounts in the same group. Both have the feed open.
+- [x] Delete a post from account A.
+- [x] On account B, pull-to-refresh.
+- [x] **Expect:** the post is gone from B's feed.
 
 ### 11. Cannot delete others' posts
-- [ ] Long-press a post authored by another user.
-- [ ] **Expect:** no "Delete" option appears in the action sheet. UI-level gating — not just a server rejection.
+- [x] Long-press a post authored by another user.
+- [x] **Expect:** no "Delete" option appears in the action sheet. UI-level gating — not just a server rejection.
 
 ### 12. RLS: non-member cannot read the feed
-- [ ] With a JWT from a user who is NOT a member of the group, call `GET /groups/{id}/feed` directly (via curl).
-- [ ] **Expect:** 403 or 404. Feed contents are never returned.
+- [x] With a JWT from a user who is NOT a member of the group, call `GET /groups/{id}/feed` directly (via curl).
+- [x] **Expect:** 403 or 404. Feed contents are never returned. — automated: `test_non_member_cannot_read_group` in `tests/integration/test_groups.py` now asserts `feed.status_code == 404`.
 
 ### 13. Empty state
-- [ ] Create a fresh group, complete the photo-booth, then delete the strip post (your only post).
-- [ ] **Expect:** empty state copy appears: "Nothing here yet. Wait for a prompt — or check back."
+- [x] Create a fresh group, complete the photo-booth, then delete the strip post (your only post).
+- [x] **Expect:** empty state copy appears: "Nothing here yet. Wait for a prompt — or check back."
 
 ### 14. View delay (spot-check)
-- [ ] Create a group with `view_delay_seconds = 60` (Advanced settings on create). Capture a post via the test-capture button.
-- [ ] Immediately check the feed on the same device (or another device signed into the group).
-- [ ] **Expect:** the post is NOT visible yet.
-- [ ] Wait 60 seconds, then pull-to-refresh.
-- [ ] **Expect:** the post now appears. This validates the knob that holds posts until `visible_at` elapses.
+- [x] Create a group with `view_delay_seconds = 60` (Advanced settings on create). Capture a post via the test-capture button.
+- [x] Immediately check the feed on the same device (or another device signed into the group).
+- [x] **Expect:** the post is NOT visible yet.
+- [x] Wait 60 seconds, then pull-to-refresh.
+- [x] **Expect:** the post now appears. This validates the knob that holds posts until `visible_at` elapses. — automated: `test_view_delay_hides_post_until_visible_at` in `tests/integration/test_feed.py` (uses 5 s delay for speed).
 
 ## Bar for moving to Phase 6
 

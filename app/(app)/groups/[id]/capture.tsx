@@ -81,7 +81,7 @@ export default function CaptureScreen() {
   if (!id) {
     return <ErrorScreen title="Missing group id" />;
   }
-  if (status === 'unknown' || groupQ.isLoading || (promptId && promptQ.isLoading)) {
+  if (status === 'unknown' || (promptId && promptQ.isLoading)) {
     return <LoadingScreen />;
   }
   if (status === 'undetermined') {
@@ -100,23 +100,13 @@ export default function CaptureScreen() {
   if (status === 'denied' || status === 'restricted') {
     return <RecoveryScreen onOpenSettings={openSettings} onBack={() => router.back()} />;
   }
-  if (groupQ.isError || !groupQ.data) {
-    return (
-      <ErrorScreen
-        title="Couldn't load group"
-        detail={
-          groupQ.error instanceof ApiError
-            ? `${groupQ.error.status}: ${groupQ.error.body || groupQ.error.message}`
-            : 'Network error'
-        }
-      />
-    );
-  }
 
   // Video length cap: prefer the prompt-supplied per-shot cap when present
   // (prompts can specify shorter targets), otherwise the group's max.
+  // Fall back to 60s when offline and group data isn't cached — the capture
+  // and confirm flow doesn't require group data (locked state comes via 409).
   const maxVideoSeconds =
-    promptQ.data?.target_video_length_seconds ?? groupQ.data.max_video_length_seconds;
+    promptQ.data?.target_video_length_seconds ?? groupQ.data?.max_video_length_seconds ?? 60;
 
   return (
     <CaptureLive

@@ -57,6 +57,8 @@ The signed *release* APK (scenario 11) is a separate build with the production/p
 - [ ] **Expect:** on launch (or first foreground), the persisted queue flushes; the post uploads and appears in the feed. The local media file was kept (document dir), not evicted.
 
 ### 3. `captured_at` is preserved
+> **Automated (pytest):** `test_confirm_stores_client_captured_at_not_server_time` in `tests/test_posts.py` — confirms the insert payload carries the client-supplied `captured_at` (45 min in the past), not the server-receipt time. ✅ passing.
+
 - [ ] Capture offline, wait several minutes before reconnecting, then let it flush.
 - [ ] Check the `posts` row in Supabase.
 - [ ] **Expect:** `captured_at` reflects the original capture moment, NOT the (later) upload time. The feed timestamp matches when you actually took it.
@@ -81,10 +83,14 @@ The signed *release* APK (scenario 11) is a separate build with the production/p
 - [ ] **Expect:** lifecycle shows `locked`; no test-capture button; no active-prompt CTA; photo-booth does NOT fire on entry; the feed is fully viewable.
 
 ### 8. Backend rejects capture to a locked group
+> **Automated (pytest):** `test_upload_url_locked_group_returns_409_group_locked` and `test_confirm_locked_group_returns_409_group_locked` in `tests/test_posts.py` — both endpoints return `409 {"error": "group_locked"}` for a member of a locked group; no presigned URL is minted and no insert fires. ✅ passing.
+
 - [ ] With a locked group, call `POST /posts/upload-url` (or `/confirm`) directly via curl with a member JWT.
 - [ ] **Expect:** `409` with `{ "error": "group_locked" }`. The mobile app handles this gracefully if a capture races the boundary.
 
 ### 9. Dispatcher respects a lock that lands after scheduling (spot-check)
+> **Automated (pytest):** `test_dispatcher_cancels_prompt_when_group_locked` in `tests/test_dispatcher.py` — a scheduled prompt whose group's `end_date` is in the past is set to `status='missed'`, no push is sent, and `prompts_cancelled_locked` increments. ✅ passing.
+
 - [ ] Create a group ending today with a prompt scheduled for later today, then move `end_date` to yesterday in Supabase before the dispatcher runs.
 - [ ] **Expect:** the dispatcher skips the push and sets the prompt to a terminal state — no push lands for a now-locked group.
 
