@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { ApiError } from '@/api/client';
+import { queryErrorText } from '@/api/errors';
 import { type FeedItem } from '@/api/feed';
 import { getGroup, type GroupWithLifecycle } from '@/api/groups';
 import { MissedWhileOfflineBanner } from '@/features/capture/MissedWhileOfflineBanner';
@@ -114,13 +114,11 @@ export default function GroupFeed() {
         <View style={styles.center}>
           <ActivityIndicator />
         </View>
-      ) : feedQ.isError ? (
+      ) : feedQ.isError && items.length === 0 ? (
+        // Only block on error when we have nothing cached to show. A failed
+        // background refetch (e.g. offline) keeps the cached feed visible.
         <View style={styles.errorBlock}>
-          <Text style={styles.error}>
-            {feedQ.error instanceof ApiError
-              ? `${feedQ.error.status}: ${feedQ.error.body || feedQ.error.message}`
-              : 'Network error loading the feed'}
-          </Text>
+          <Text style={styles.error}>{queryErrorText(feedQ.error)}</Text>
           <Pressable
             onPress={() => feedQ.refetch()}
             style={({ pressed }) => [styles.secondaryBtn, pressed && styles.pressed]}

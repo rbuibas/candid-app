@@ -14,6 +14,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ApiError } from '@/api/client';
+import { queryErrorText } from '@/api/errors';
 import { deleteGroup, getGroup, type GroupWithLifecycle } from '@/api/groups';
 import { listMembers, type GroupMember } from '@/api/members';
 import { triggerDevPrompt } from '@/api/prompts';
@@ -135,16 +136,12 @@ export default function GroupInfo() {
     );
   }
 
-  if (groupQ.isError || !groupQ.data) {
+  if (!groupQ.data) {
     return (
       <SafeAreaView style={styles.safe}>
         <Stack.Screen options={{ title: 'Info' }} />
         <View style={styles.errorBlock}>
-          <Text style={styles.error}>
-            {groupQ.error instanceof ApiError
-              ? `${groupQ.error.status}: ${groupQ.error.body || groupQ.error.message}`
-              : 'Network error loading group'}
-          </Text>
+          <Text style={styles.error}>{queryErrorText(groupQ.error)}</Text>
           <Pressable
             onPress={() => groupQ.refetch()}
             style={({ pressed }) => [styles.secondaryBtn, pressed && styles.pressed]}
@@ -336,11 +333,7 @@ export default function GroupInfo() {
             <Text style={styles.sectionLabel}>Members</Text>
             {membersQ.isLoading ? <ActivityIndicator style={styles.membersLoading} /> : null}
             {membersQ.isError ? (
-              <Text style={styles.error}>
-                {membersQ.error instanceof ApiError
-                  ? `${membersQ.error.status}: ${membersQ.error.body || membersQ.error.message}`
-                  : 'Network error loading members'}
-              </Text>
+              <Text style={styles.error}>{queryErrorText(membersQ.error)}</Text>
             ) : null}
           </View>
         }
@@ -363,11 +356,7 @@ export default function GroupInfo() {
                 )}
               </Pressable>
               {deleteM.isError ? (
-                <Text style={styles.error}>
-                  {deleteM.error instanceof ApiError
-                    ? `${deleteM.error.status}: ${deleteM.error.body || deleteM.error.message}`
-                    : 'Network error deleting group'}
-                </Text>
+                <Text style={styles.error}>{queryErrorText(deleteM.error)}</Text>
               ) : null}
             </View>
           ) : null

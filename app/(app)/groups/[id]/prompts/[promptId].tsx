@@ -4,7 +4,7 @@ import { useCallback } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { ApiError } from '@/api/client';
+import { queryErrorText } from '@/api/errors';
 import { getGroup } from '@/api/groups';
 import type { PromptView } from '@/api/prompts';
 import { useActivePrompt } from '@/features/prompt/useActivePrompt';
@@ -55,11 +55,7 @@ export default function ActivePromptScreen() {
   if (!promptQ.data) {
     return (
       <FullScreen title="Prompt">
-        <Text style={styles.errorText}>
-          {promptQ.error instanceof ApiError
-            ? `${promptQ.error.status}: ${promptQ.error.body || promptQ.error.message}`
-            : 'Network error loading prompt'}
-        </Text>
+        <Text style={styles.errorText}>{queryErrorText(promptQ.error)}</Text>
         <Pressable
           onPress={() => promptQ.refetch()}
           style={({ pressed }) => [styles.secondaryBtn, pressed && styles.pressed]}

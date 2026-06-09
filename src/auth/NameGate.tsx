@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { ApiError } from '@/api/client';
+import { queryErrorText } from '@/api/errors';
 import { patchProfileMe } from '@/api/profile';
 
 import { useSession } from './SessionProvider';
@@ -104,11 +104,7 @@ function NameModal() {
             )}
           </Pressable>
           {saveM.isError ? (
-            <Text style={styles.error}>
-              {saveM.error instanceof ApiError
-                ? `${saveM.error.status}: ${saveM.error.body || saveM.error.message}`
-                : 'Could not save your name. Try again.'}
-            </Text>
+            <Text style={styles.error}>{queryErrorText(saveM.error)}</Text>
           ) : null}
         </View>
       </SafeAreaView>

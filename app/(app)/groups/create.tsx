@@ -15,7 +15,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { ApiError } from '@/api/client';
+import { queryErrorText } from '@/api/errors';
 import { createGroup, type CreateGroupInput } from '@/api/groups';
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -282,11 +282,7 @@ export default function CreateGroup() {
           ) : null}
 
           {mutation.isError ? (
-            <Text style={styles.error}>
-              {mutation.error instanceof ApiError
-                ? `${mutation.error.status}: ${mutation.error.body || mutation.error.message}`
-                : 'Network error creating group'}
-            </Text>
+            <Text style={styles.error}>{queryErrorText(mutation.error)}</Text>
           ) : null}
         </ScrollView>
 
