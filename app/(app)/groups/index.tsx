@@ -4,7 +4,7 @@ import { useEffect } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { ApiError } from '@/api/client';
+import { queryErrorText } from '@/api/errors';
 import { listGroups, type GroupWithLifecycle } from '@/api/groups';
 import { useSession } from '@/auth/SessionProvider';
 import { GroupListItem } from '@/features/groups/components/GroupListItem';
@@ -34,13 +34,10 @@ export default function GroupsList() {
         <View style={styles.center}>
           <ActivityIndicator />
         </View>
-      ) : isError ? (
+      ) : isError && !data ? (
+        // Keep any cached group list visible if a refetch fails offline.
         <View style={styles.errorBlock}>
-          <Text style={styles.error}>
-            {error instanceof ApiError
-              ? `${error.status}: ${error.body || error.message}`
-              : 'Network error loading groups'}
-          </Text>
+          <Text style={styles.error}>{queryErrorText(error)}</Text>
           <Pressable
             onPress={() => refetch()}
             style={({ pressed }) => [styles.secondaryBtn, pressed && styles.pressed]}

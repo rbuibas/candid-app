@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { ApiError } from '@/api/client';
+import { queryErrorText } from '@/api/errors';
 import { getPost, type PostWithMediaUrl } from '@/api/posts';
 
 /**
@@ -39,13 +39,9 @@ export default function PostPreviewScreen() {
         <View style={styles.center}>
           <ActivityIndicator />
         </View>
-      ) : postQ.isError || !postQ.data ? (
+      ) : !postQ.data ? (
         <View style={styles.errorBlock}>
-          <Text style={styles.errorText}>
-            {postQ.error instanceof ApiError
-              ? `${postQ.error.status}: ${postQ.error.body || postQ.error.message}`
-              : 'Network error loading post'}
-          </Text>
+          <Text style={styles.errorText}>{queryErrorText(postQ.error)}</Text>
           <Pressable
             onPress={() => postQ.refetch()}
             style={({ pressed }) => [styles.secondaryBtn, pressed && styles.pressed]}

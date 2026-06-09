@@ -13,7 +13,6 @@ import {
   type VideoFile,
 } from 'react-native-vision-camera';
 
-import { ApiError } from '@/api/client';
 import { getGroup } from '@/api/groups';
 import {
   confirmPost,
@@ -33,7 +32,12 @@ import { geocodeOnce } from '@/features/capture/useGeocode';
 import { contentTypeFor, uploadBytes } from '@/features/capture/uploadBytes';
 import { useCameraPermissions } from '@/features/capture/useCameraPermissions';
 import { generateVideoThumbnail } from '@/features/capture/videoThumbnail';
-import { isGroupLockedError, isMissedError, isRetryable } from '@/features/capture/uploadErrors';
+import {
+  describeError,
+  isGroupLockedError,
+  isMissedError,
+  isRetryable,
+} from '@/features/capture/uploadErrors';
 import { useActivePrompt } from '@/features/prompt/useActivePrompt';
 import { makeQueueId, useUploadQueue } from '@/stores/uploadQueue';
 
@@ -519,11 +523,7 @@ function CaptureLive({
 
         {captureMutation.isError && terminal === null ? (
           <View style={styles.errorBlock} pointerEvents="auto">
-            <Text style={styles.errorText}>
-              {captureMutation.error instanceof ApiError
-                ? `${captureMutation.error.status}: ${captureMutation.error.body || captureMutation.error.message}`
-                : (captureMutation.error as Error).message}
-            </Text>
+            <Text style={styles.errorText}>{describeError(captureMutation.error)}</Text>
             <Pressable
               onPress={shutter}
               style={({ pressed }) => [styles.retryBtn, pressed && styles.pressed]}

@@ -2,7 +2,8 @@ import { useQuery } from '@tanstack/react-query';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { ApiError, getHealth } from '@/api';
+import { getHealth } from '@/api';
+import { queryErrorText } from '@/api/errors';
 import { API_URL } from '@/config';
 
 /**
@@ -26,9 +27,7 @@ export default function HealthScreen() {
             <ActivityIndicator />
           ) : isError ? (
             <>
-              <Text style={styles.error}>
-                {error instanceof ApiError ? `${error.status} ${error.message}` : 'Network error'}
-              </Text>
+              <Text style={styles.error}>{queryErrorText(error)}</Text>
               <Pressable
                 onPress={() => refetch()}
                 style={({ pressed }) => [styles.retry, pressed && styles.retryPressed]}

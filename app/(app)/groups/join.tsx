@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { ApiError } from '@/api/client';
+import { queryErrorText } from '@/api/errors';
 import { joinGroup } from '@/api/groups';
 
 const CODE_RE = /^[A-Z0-9]{6}$/;
@@ -63,11 +63,7 @@ export default function JoinGroup() {
           />
 
           {mutation.isError ? (
-            <Text style={styles.error}>
-              {mutation.error instanceof ApiError
-                ? `${mutation.error.status}: ${mutation.error.body || mutation.error.message}`
-                : 'Network error joining group'}
-            </Text>
+            <Text style={styles.error}>{queryErrorText(mutation.error)}</Text>
           ) : null}
         </View>
 

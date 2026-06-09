@@ -43,25 +43,25 @@ The signed *release* APK (scenario 11) is a separate build with the production/p
 ## Test pass — hardening features
 
 ### 1. Offline capture queues and flushes
-- [ ] Put the device in airplane mode.
-- [ ] Dev-fire a prompt (it'll already be on the device if fired before airplane mode), open it, and capture.
-- [ ] **Expect:** capture succeeds locally; UI shows "Saved — will upload when you're back online"; an "uploading…" indicator reflects 1 pending.
-- [ ] Turn airplane mode off.
-- [ ] **Expect:** within a few seconds the queue flushes; the post appears in the feed; the `posts` row exists; the indicator clears.
+- [x] Put the device in airplane mode.
+- [x] Dev-fire a prompt (it'll already be on the device if fired before airplane mode), open it, and capture.
+- [x] **Expect:** capture succeeds locally; UI shows "Saved — will upload when you're back online"; an "uploading…" indicator reflects 1 pending.
+- [x] Turn airplane mode off.
+- [x] **Expect:** within a few seconds the queue flushes; the post appears in the feed; the `posts` row exists; the indicator clears.
 
 ### 2. Offline capture survives an app kill (the hard one)
-- [ ] Airplane mode on → capture (queues).
-- [ ] Kill the app from the recents tray while still offline.
-- [ ] Turn airplane mode off.
-- [ ] Re-launch the app from the launcher.
-- [ ] **Expect:** on launch (or first foreground), the persisted queue flushes; the post uploads and appears in the feed. The local media file was kept (document dir), not evicted.
+- [x] Airplane mode on → capture (queues).
+- [x] Kill the app from the recents tray while still offline.
+- [x] Turn airplane mode off.
+- [x] Re-launch the app from the launcher.
+- [x] **Expect:** on launch (or first foreground), the persisted queue flushes; the post uploads and appears in the feed. The local media file was kept (document dir), not evicted.
 
 ### 3. `captured_at` is preserved
 > **Automated (pytest):** `test_confirm_stores_client_captured_at_not_server_time` in `tests/test_posts.py` — confirms the insert payload carries the client-supplied `captured_at` (45 min in the past), not the server-receipt time. ✅ passing.
 
-- [ ] Capture offline, wait several minutes before reconnecting, then let it flush.
-- [ ] Check the `posts` row in Supabase.
-- [ ] **Expect:** `captured_at` reflects the original capture moment, NOT the (later) upload time. The feed timestamp matches when you actually took it.
+- [x] Capture offline, wait several minutes before reconnecting, then let it flush.
+- [x] Check the `posts` row in Supabase.
+- [x] **Expect:** `captured_at` reflects the original capture moment, NOT the (later) upload time. The feed timestamp matches when you actually took it.
 
 ### 4. Too-long offline gap lands as missed (cleanly)
 - [ ] Dev-fire a prompt → go airplane mode → capture.
@@ -85,24 +85,24 @@ The signed *release* APK (scenario 11) is a separate build with the production/p
 ### 8. Backend rejects capture to a locked group
 > **Automated (pytest):** `test_upload_url_locked_group_returns_409_group_locked` and `test_confirm_locked_group_returns_409_group_locked` in `tests/test_posts.py` — both endpoints return `409 {"error": "group_locked"}` for a member of a locked group; no presigned URL is minted and no insert fires. ✅ passing.
 
-- [ ] With a locked group, call `POST /posts/upload-url` (or `/confirm`) directly via curl with a member JWT.
-- [ ] **Expect:** `409` with `{ "error": "group_locked" }`. The mobile app handles this gracefully if a capture races the boundary.
+- [x] With a locked group, call `POST /posts/upload-url` (or `/confirm`) directly via curl with a member JWT.
+- [x] **Expect:** `409` with `{ "error": "group_locked" }`. The mobile app handles this gracefully if a capture races the boundary.
 
 ### 9. Dispatcher respects a lock that lands after scheduling (spot-check)
 > **Automated (pytest):** `test_dispatcher_cancels_prompt_when_group_locked` in `tests/test_dispatcher.py` — a scheduled prompt whose group's `end_date` is in the past is set to `status='missed'`, no push is sent, and `prompts_cancelled_locked` increments. ✅ passing.
 
-- [ ] Create a group ending today with a prompt scheduled for later today, then move `end_date` to yesterday in Supabase before the dispatcher runs.
-- [ ] **Expect:** the dispatcher skips the push and sets the prompt to a terminal state — no push lands for a now-locked group.
+- [x] Create a group ending today with a prompt scheduled for later today, then move `end_date` to yesterday in Supabase before the dispatcher runs.
+- [x] **Expect:** the dispatcher skips the push and sets the prompt to a terminal state — no push lands for a now-locked group.
 
 ### 10. Video compression
-- [ ] Capture a 10-second video and let it upload.
-- [ ] Check the R2 object size in the dashboard.
-- [ ] **Expect:** meaningfully smaller than a raw full-resolution recording, while still watchable. Eyeball the playback quality — the goal is "small AND watchable," not "tiny and unusable."
+- [x] Capture a 10-second video and let it upload.
+- [x] Check the R2 object size in the dashboard.
+- [x] **Expect:** meaningfully smaller than a raw full-resolution recording, while still watchable. Eyeball the playback quality — the goal is "small AND watchable," not "tiny and unusable."
 
 ### 11. Signed release APK builds and installs
-- [ ] `eas build --profile production --platform android` (or preview).
-- [ ] **Expect:** a signed APK lands. Install it on a *clean* device (not the dev build).
-- [ ] **Expect:** the release build launches, signs in via magic link, and completes onboarding without the dev server running.
+- [x] `eas build --profile production --platform android` (or preview).
+- [x] **Expect:** a signed APK lands. Install it on a *clean* device (not the dev build).
+- [x] **Expect:** the release build launches, signs in via magic link, and completes onboarding without the dev server running.
 
 ## The party simulation (the acceptance gate)
 
