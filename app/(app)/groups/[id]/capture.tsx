@@ -39,6 +39,7 @@ import {
   isRetryable,
 } from '@/features/capture/uploadErrors';
 import { useActivePrompt } from '@/features/prompt/useActivePrompt';
+import { setActiveGroup } from '@/stores/activeGroup';
 import { makeQueueId, useUploadQueue } from '@/stores/uploadQueue';
 
 type Terminal = 'saved-offline' | 'locked' | 'missed';
@@ -125,7 +126,13 @@ export default function CaptureScreen() {
         })
       }
       onBack={() => router.back()}
-      onLeave={() => router.replace({ pathname: '/(app)/groups/[id]', params: { id } })}
+      onLeave={() => {
+        // Return to the active group's Feed tab. The captured group is the
+        // active one already; set it defensively in case capture was entered
+        // from a stale-push deep link for a different group.
+        setActiveGroup(id);
+        router.replace('/(app)/(tabs)/feed');
+      }}
     />
   );
 }

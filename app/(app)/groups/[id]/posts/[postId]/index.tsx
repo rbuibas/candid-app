@@ -14,6 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { queryErrorText } from '@/api/errors';
 import { getPost, type PostWithMediaUrl } from '@/api/posts';
+import { setActiveGroup } from '@/stores/activeGroup';
 
 /**
  * Phase 3 verification surface: a barebones screen that reads the post via
@@ -54,7 +55,10 @@ export default function PostPreviewScreen() {
       )}
       <View style={styles.footer}>
         <Pressable
-          onPress={() => router.replace({ pathname: '/(app)/groups/[id]', params: { id } })}
+          onPress={() => {
+            setActiveGroup(id);
+            router.replace('/(app)/(tabs)/feed');
+          }}
           style={({ pressed }) => [styles.primaryBtn, pressed && styles.pressed]}
         >
           <Text style={styles.primaryBtnText}>Done</Text>
