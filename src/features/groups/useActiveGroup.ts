@@ -4,6 +4,8 @@ import { useEffect, useMemo } from 'react';
 import { listGroups, type GroupWithLifecycle } from '@/api/groups';
 import { setActiveGroup, useActiveGroupStore } from '@/stores/activeGroup';
 
+import { resolveActiveGroup } from './resolveActiveGroup';
+
 /**
  * Resolves the single active group (candid-requirements §3) against the live
  * membership list. The resolution states drive the top-level nav guard
@@ -40,13 +42,8 @@ export function useActiveGroup(): ActiveGroupResolution {
   const groups = groupsQ.data;
 
   const resolved = useMemo<GroupWithLifecycle | undefined>(() => {
-    if (!groups || groups.length === 0) return undefined;
-    const byId = new Map(groups.map((g: GroupWithLifecycle) => [g.id, g] as const));
-    if (activeGroupId && byId.has(activeGroupId)) return byId.get(activeGroupId);
-    const fromRecency = recency.find((id) => byId.has(id));
-    if (fromRecency) return byId.get(fromRecency);
-    // Newest-created first as the "most recently joined" proxy of last resort.
-    return [...groups].sort((a, b) => (a.created_at < b.created_at ? 1 : -1))[0];
+    if (!groups) return undefined;
+    return resolveActiveGroup(groups, activeGroupId, recency);
   }, [groups, activeGroupId, recency]);
 
   // Persist a resolved fallback so relaunch restores it. No-op when the
