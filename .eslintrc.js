@@ -6,4 +6,11 @@ module.exports = {
     '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
     'prettier/prettier': 'error',
   },
+  overrides: [
+    {
+      // Jest globals (describe/it/expect/jest) for the test + setup files.
+      files: ['**/*.test.ts', '**/*.test.tsx', 'jest.setup.js'],
+      env: { jest: true },
+    },
+  ],
 };

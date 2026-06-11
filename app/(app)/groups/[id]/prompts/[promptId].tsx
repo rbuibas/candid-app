@@ -9,6 +9,7 @@ import { getGroup } from '@/api/groups';
 import type { PromptView } from '@/api/prompts';
 import { useActivePrompt } from '@/features/prompt/useActivePrompt';
 import { usePromptCountdown } from '@/features/prompt/usePromptCountdown';
+import { setActiveGroup } from '@/stores/activeGroup';
 
 /**
  * The active-prompt screen. Pure display of the server-computed `state`:
@@ -80,7 +81,12 @@ export default function ActivePromptScreen() {
           params: { id, promptId },
         })
       }
-      onBack={() => router.replace({ pathname: '/(app)/groups/[id]', params: { id } })}
+      onBack={() => {
+        // A prompt can be deep-linked from a push for any group; make it the
+        // active group before returning to the Feed tab.
+        setActiveGroup(id);
+        router.replace('/(app)/(tabs)/feed');
+      }}
     />
   );
 }

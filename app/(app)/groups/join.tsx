@@ -15,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { queryErrorText } from '@/api/errors';
 import { joinGroup } from '@/api/groups';
+import { setActiveGroup } from '@/stores/activeGroup';
 
 const CODE_RE = /^[A-Z0-9]{6}$/;
 
@@ -29,7 +30,10 @@ export default function JoinGroup() {
       qc.setQueryData(['groups', group.id], group);
       qc.invalidateQueries({ queryKey: ['groups'] });
       qc.invalidateQueries({ queryKey: ['groups', group.id, 'members'] });
-      router.replace({ pathname: '/(app)/groups/[id]', params: { id: group.id } });
+      // The joined group becomes the active group; land on its Feed tab (which
+      // bounces to the photo booth on first entry).
+      setActiveGroup(group.id);
+      router.replace('/(app)/(tabs)/feed');
     },
   });
 

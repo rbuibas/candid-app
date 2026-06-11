@@ -62,8 +62,10 @@ export default function GroupInfo() {
       qc.removeQueries({ queryKey: ['groups', id] });
       qc.removeQueries({ queryKey: ['groups', id, 'members'] });
       qc.removeQueries({ queryKey: ['groups', id, 'invite'] });
-      // Pop both info and the (now-deleted) feed, landing back on the list.
-      router.dismissTo('/(app)/groups');
+      // The active group is gone; land on the Groups tab. The (tabs) guard
+      // re-resolves the active group (a fallback group, or create-or-join if
+      // this was the last one) since the deleted id is no longer in the list.
+      router.replace('/(app)/(tabs)/groups');
     },
   });
 

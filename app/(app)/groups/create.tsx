@@ -17,6 +17,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { queryErrorText } from '@/api/errors';
 import { createGroup, type CreateGroupInput } from '@/api/groups';
+import { setActiveGroup } from '@/stores/activeGroup';
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_RE = /^\d{2}:\d{2}$/;
@@ -132,7 +133,10 @@ export default function CreateGroup() {
       qc.setQueryData(['groups', group.id, 'invite'], { code: invite_code });
       qc.setQueryData(['groups', group.id], group);
       qc.invalidateQueries({ queryKey: ['groups'] });
-      router.replace({ pathname: '/(app)/groups/[id]', params: { id: group.id } });
+      // The new group becomes the active group; land on the Feed tab (which
+      // bounces to the photo booth on first entry).
+      setActiveGroup(group.id);
+      router.replace('/(app)/(tabs)/feed');
     },
   });
 

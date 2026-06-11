@@ -95,10 +95,43 @@ screen, then run `npx expo start --dev-client` from your machine.
 | `npm start`            | `expo start --dev-client`                          |
 | `npm run android`      | `expo run:android` (after dev client is installed) |
 | `npm run ios`          | `expo run:ios`                                     |
+| `npm test`             | Jest (jest-expo) — unit + hook tests               |
+| `npm run test:watch`   | Jest in watch mode                                 |
 | `npm run lint`         | ESLint, `--max-warnings 0`                         |
 | `npm run format`       | Prettier `--write`                                 |
 | `npm run format:check` | Prettier `--check`                                 |
 | `npm run typecheck`    | `tsc --noEmit`                                     |
+
+## Validation
+
+We validate at three levels — automated checks here, plus shared end-to-end
+scenarios you run by hand (the app can't be fully exercised without a device).
+
+**Automated (`npm test`, no device/emulator).** Jest with the `jest-expo`
+preset. Tests are colocated as `*.test.ts(x)` under `src/`. They cover the
+logic-dense parts of each phase, not pixel rendering. For **E1**:
+
+| Area | Test | What it locks in |
+| ---- | ---- | ---------------- |
+| Active-group resolution | `src/features/groups/resolveActiveGroup.test.ts` | persisted → most-recently-joined → newest-created proxy → empty; pure function |
+| Active-group resolver (integration) | `src/features/groups/useActiveGroup.test.tsx` | the real hook over React Query + the persisted store: restore, empty → create-or-join, invalid-id fallback writes back |
+| Active-group store | `src/stores/activeGroup.test.ts` | `setActiveGroup` recency ordering/dedup/cap, `clearActiveGroup` keeps recency |
+| Client events | `src/api/events.test.ts` | `recordClientEvent` POSTs `/events` with a default `{}` payload and passes explicit payloads verbatim |
+
+> Why no screen-render tests? Expo Router treats every file under `app/` as a
+> route (including `*.test.tsx`), and the screens transitively pull native
+> modules (camera, Firebase). For the E1 navigation skeleton, screen +
+> navigation **wiring** is validated by the manual E2E scenarios instead.
+
+**Also run before pushing:** `npm run typecheck` and `npm run lint`.
+(Heads-up: on a Windows checkout with `core.autocrlf=true`, `npm run lint` can
+report repo-wide `prettier/prettier` CRLF errors — a working-tree artifact; git
+stores files as LF, so this clears on commit / in CI.)
+
+**Manual end-to-end.** Real device/emulator regression scenarios live at the
+**workspace root** in [`e2e/`](../e2e) — they are repo-agnostic (drive the app
+against the API) and grow one file per phase. Run the E1 set after any change
+that touches navigation, the active group, or profile.
 
 ## Project layout
 

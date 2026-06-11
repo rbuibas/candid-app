@@ -5,6 +5,7 @@ import { useEffect, useRef } from 'react';
 
 import { joinGroup } from '@/api/groups';
 import { useSession } from '@/auth/SessionProvider';
+import { setActiveGroup } from '@/stores/activeGroup';
 
 import { consumePendingInvite, setPendingInvite } from './pendingInvite';
 
@@ -73,7 +74,9 @@ export function useDeepLinkJoin(): void {
         qc.setQueryData(['groups', group.id], group);
         qc.invalidateQueries({ queryKey: ['groups'] });
         qc.invalidateQueries({ queryKey: ['groups', group.id, 'members'] });
-        router.replace({ pathname: '/(app)/groups/[id]', params: { id: group.id } });
+        // The joined group becomes the active group; land on its Feed tab.
+        setActiveGroup(group.id);
+        router.replace('/(app)/(tabs)/feed');
       })
       .catch((err: unknown) => {
         // Drop on the floor: re-queueing risks an infinite loop on a

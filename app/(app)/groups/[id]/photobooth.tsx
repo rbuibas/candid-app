@@ -17,6 +17,7 @@ import { createAvatarUploadUrl, patchAvatar, type AvatarUploadUrlResponse } from
 import { Countdown } from '@/features/capture/components/Countdown';
 import { StripComposer, type StripComposerRef } from '@/features/capture/StripComposer';
 import { formatDateRange } from '@/features/groups/lifecycle';
+import { setActiveGroup } from '@/stores/activeGroup';
 import { useBestFormat } from '@/features/capture/useBestFormat';
 import { contentTypeFor, uploadBytes } from '@/features/capture/uploadBytes';
 import { useCameraPermissions } from '@/features/capture/useCameraPermissions';
@@ -222,11 +223,13 @@ function PhotoBoothLive({ groupId, onBack }: { groupId: string; onBack: () => vo
     });
   }, [phase, composeAndUpload]);
 
-  // When `done`, land on the group feed — the strip is already seeded into the
-  // photobooth-mine cache above, so the feed's join-guard won't bounce back.
+  // When `done`, land on the active group's Feed tab — the strip is already
+  // seeded into the photobooth-mine cache above, so the feed's join-guard won't
+  // bounce back. Set the active group first so the Feed tab reflects this group.
   useEffect(() => {
     if (phase.kind !== 'done') return;
-    router.replace({ pathname: '/(app)/groups/[id]', params: { id: groupId } });
+    setActiveGroup(groupId);
+    router.replace('/(app)/(tabs)/feed');
   }, [phase, router, groupId]);
 
   const retry = useCallback(() => {
