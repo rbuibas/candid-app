@@ -31,7 +31,7 @@ export default function GroupsTab() {
   };
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+    <SafeAreaView style={styles.safe} edges={['top', 'bottom']} testID="groups-screen">
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Groups</Text>
       </View>
@@ -79,12 +79,14 @@ export default function GroupsTab() {
 
       <View style={styles.ctas}>
         <Pressable
+          testID="groups-create"
           onPress={() => router.push('/(app)/groups/create')}
           style={({ pressed }) => [styles.primaryBtn, pressed && styles.pressed]}
         >
           <Text style={styles.primaryBtnText}>Create group</Text>
         </Pressable>
         <Pressable
+          testID="groups-join"
           onPress={() => router.push('/(app)/groups/join')}
           style={({ pressed }) => [styles.outlineBtn, pressed && styles.pressed]}
         >
@@ -110,6 +112,7 @@ function GroupRow({
 }) {
   return (
     <Pressable
+      testID="group-row"
       onPress={onPress}
       style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
     >
@@ -119,7 +122,7 @@ function GroupRow({
             {group.name}
           </Text>
           {active ? (
-            <View style={styles.activePill}>
+            <View style={styles.activePill} testID="group-active-pill">
               <Text style={styles.activePillText}>Active</Text>
             </View>
           ) : null}

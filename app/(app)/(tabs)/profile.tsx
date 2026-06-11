@@ -41,7 +41,7 @@ export default function ProfileTab() {
   const groupId = useActiveGroupStore((s) => s.activeGroupId);
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+    <SafeAreaView style={styles.safe} edges={['top', 'bottom']} testID="profile-screen">
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Profile</Text>
       </View>
@@ -87,6 +87,7 @@ function IdentitySection() {
           size={64}
         />
         <Pressable
+          testID="profile-edit-photo"
           onPress={() => router.push('/(app)/profile/avatar')}
           style={({ pressed }) => [styles.outlineBtn, pressed && styles.pressed]}
         >
@@ -96,6 +97,7 @@ function IdentitySection() {
 
       <Text style={styles.fieldLabel}>Display name</Text>
       <TextInput
+        testID="profile-display-name-input"
         value={name}
         onChangeText={setDraft}
         placeholder="Your name"
@@ -107,6 +109,7 @@ function IdentitySection() {
         style={styles.input}
       />
       <Pressable
+        testID="profile-save-name"
         onPress={() => saveM.mutate(trimmed)}
         disabled={!canSave}
         style={({ pressed }) => [
@@ -147,6 +150,7 @@ function SettingsSection() {
       </View>
 
       <Pressable
+        testID="profile-signout"
         onPress={() => {
           void signOut();
         }}

@@ -49,7 +49,7 @@ export default function SignIn() {
   };
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={styles.safe} testID="signin-screen">
       <View style={styles.container}>
         <Text style={styles.title}>Candid</Text>
         <Text style={styles.subtitle}>Sign in with a magic link</Text>
@@ -70,6 +70,7 @@ export default function SignIn() {
         ) : (
           <View style={styles.block}>
             <TextInput
+              testID="signin-email-input"
               value={email}
               onChangeText={setEmail}
               placeholder="you@example.com"
@@ -82,6 +83,7 @@ export default function SignIn() {
               style={styles.input}
             />
             <Pressable
+              testID="signin-send"
               onPress={onSend}
               disabled={state.kind === 'sending'}
               style={({ pressed }) => [

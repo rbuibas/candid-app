@@ -343,6 +343,7 @@ export default function GroupInfo() {
           isCreator ? (
             <View style={styles.footer}>
               <Pressable
+                testID="group-delete"
                 onPress={confirmDelete}
                 disabled={deleteM.isPending}
                 style={({ pressed }) => [

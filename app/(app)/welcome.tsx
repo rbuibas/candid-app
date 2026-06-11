@@ -18,7 +18,7 @@ export default function Welcome() {
   const { signOut } = useSession();
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={styles.safe} testID="welcome-screen">
       <View style={styles.body}>
         <View style={styles.intro}>
           <Text style={styles.title}>Welcome to Candid</Text>
@@ -30,12 +30,14 @@ export default function Welcome() {
 
         <View style={styles.ctas}>
           <Pressable
+            testID="welcome-create"
             onPress={() => router.push('/(app)/groups/create')}
             style={({ pressed }) => [styles.primaryBtn, pressed && styles.pressed]}
           >
             <Text style={styles.primaryBtnText}>Create a group</Text>
           </Pressable>
           <Pressable
+            testID="welcome-join"
             onPress={() => router.push('/(app)/groups/join')}
             style={({ pressed }) => [styles.outlineBtn, pressed && styles.pressed]}
           >
@@ -46,6 +48,7 @@ export default function Welcome() {
 
       <View style={styles.footer}>
         <Pressable
+          testID="welcome-signout"
           onPress={() => {
             void signOut();
           }}

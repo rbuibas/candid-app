@@ -40,7 +40,7 @@ export default function JoinGroup() {
   const canSubmit = CODE_RE.test(code) && !mutation.isPending;
 
   return (
-    <SafeAreaView style={styles.safe} edges={['bottom']}>
+    <SafeAreaView style={styles.safe} edges={['bottom']} testID="join-screen">
       <Stack.Screen options={{ title: 'Join group' }} />
       <KeyboardAvoidingView
         style={styles.flex}
@@ -55,6 +55,7 @@ export default function JoinGroup() {
           </Text>
 
           <TextInput
+            testID="join-code-input"
             value={code}
             onChangeText={(v) => setCode(v.toUpperCase())}
             placeholder="ABC123"
@@ -73,6 +74,7 @@ export default function JoinGroup() {
 
         <View style={styles.footer}>
           <Pressable
+            testID="join-submit"
             onPress={() => mutation.mutate(code)}
             disabled={!canSubmit}
             style={({ pressed }) => [

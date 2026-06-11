@@ -101,7 +101,7 @@ function FeedForGroup({ groupId }: { groupId: string }) {
   }, [feedQ]);
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+    <SafeAreaView style={styles.safe} edges={['top', 'bottom']} testID="feed-screen">
       <FeedHeader group={groupQ.data} onInfo={openInfo} />
 
       {feedQ.isLoading ? (
@@ -162,12 +162,17 @@ function FeedHeader({
   return (
     <View style={styles.header}>
       <View style={styles.headerTitle}>
-        <Text style={styles.headerTitleText} numberOfLines={1}>
+        <Text style={styles.headerTitleText} numberOfLines={1} testID="feed-group-name">
           {group?.name ?? 'Feed'}
         </Text>
         {group ? <LifecycleBadge lifecycle={group.lifecycle} /> : null}
       </View>
-      <Pressable onPress={onInfo} hitSlop={12} style={({ pressed }) => pressed && styles.pressed}>
+      <Pressable
+        testID="feed-info"
+        onPress={onInfo}
+        hitSlop={12}
+        style={({ pressed }) => pressed && styles.pressed}
+      >
         <Text style={styles.infoBtn}>Info</Text>
       </Pressable>
     </View>

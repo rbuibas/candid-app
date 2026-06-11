@@ -22,12 +22,14 @@ export default function EventTab() {
   });
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+    <SafeAreaView style={styles.safe} edges={['top', 'bottom']} testID="event-screen">
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Event</Text>
       </View>
       <View style={styles.body}>
-        <Text style={styles.title}>{groupQ.data?.name ?? 'This event'}</Text>
+        <Text style={styles.title} testID="event-group-name">
+          {groupQ.data?.name ?? 'This event'}
+        </Text>
         <Text style={styles.copy}>
           The event&apos;s story arc lives here — the activity timeline, reel progress while the
           event runs, and the finished reel once it ends. Coming soon.
